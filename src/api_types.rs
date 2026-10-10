@@ -88,6 +88,7 @@ pub struct StreamItem {
 }
 impl From<Release> for StreamItem {
     fn from(r: Release) -> Self {
+        let source_label = r.source_label().to_string();
         let url = r
             .mirrors
             .first()
@@ -105,7 +106,7 @@ impl From<Release> for StreamItem {
             size_bytes: r.size_bytes,
             url,
             headers,
-            source_label: r.source_label().to_string(),
+            source_label,
         }
     }
 }

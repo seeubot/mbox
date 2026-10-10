@@ -28,9 +28,7 @@ async fn search(
     Query(params): Query<SearchQuery>,
 ) -> Result<Json<SearchResponse>, (StatusCode, Json<Value>)> {
     let page = params.page.unwrap_or(1);
-    let results = state
-        .moviebox
-        .search(&params.q, page)
+    let results = Provider::search(&*state.moviebox, &params.q, page)
         .await
         .map_err(internal)?;
     Ok(Json(SearchResponse {
@@ -47,7 +45,9 @@ async fn details(
     State(state): State<AppState>,
     Query(params): Query<DetailsQuery>,
 ) -> Result<Json<DetailsResponse>, (StatusCode, Json<Value>)> {
-    let details = state.moviebox.details(&params.id).await.map_err(internal)?;
+    let details = Provider::details(&*state.moviebox, &params.id)
+        .await
+        .map_err(internal)?;
     Ok(Json(details.into()))
 }
 #[derive(Deserialize)]
@@ -62,11 +62,14 @@ async fn streams(
     State(state): State<AppState>,
     Query(params): Query<StreamsQuery>,
 ) -> Result<Json<StreamsResponse>, (StatusCode, Json<Value>)> {
-    let releases = state
-        .moviebox
-        .episode_streams(&params.id, params.season, params.episode)
-        .await
-        .map_err(internal)?;
+    let releases = ReleaseProvider::episode_streams(
+        &*state.moviebox,
+        &params.id,
+        params.season,
+        params.episode,
+    )
+    .await
+    .map_err(internal)?;
     Ok(Json(StreamsResponse {
         id: params.id,
         provider: "moviebox".to_string(),

@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "mbox"
 version = "0.1.0"
 edition = "2021"
@@ -21,3 +21,4 @@ hmac = "0.12"
 md5 = "0.7"
 log = "0.4"
 dirs = "5"
+rand = "0.9"
