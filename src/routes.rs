@@ -15,6 +15,7 @@ pub fn router(state: AppState) -> Router {
         .route("/details", get(details))
         .route("/streams", get(streams))
         .route("/providers", get(providers))
+        .route("/debug-raw", get(debug_raw))
         .with_state(state)
 }
 #[derive(Deserialize)]
@@ -132,7 +133,37 @@ async fn providers() -> Json<Value> {
         "providers": ["moviebox", "fourkhdhub"],
     }))
 }
-fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
+#[derive(Deserialize)]
+struct DebugRawQuery {
+    id: String,
+}
+async fn debug_raw(
+    State(state): State<AppState>,
+    Query(params): Query<DebugRawQuery>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let json = state
+        .media
+        .moviebox
+        .get_details(&params.id)
+        .await
+        .map_err(internal)?;
+    Ok(Json(json))
+}#[derive(Deserialize)]
+struct DebugRawQuery {
+    id: String,
+}
+async fn debug_raw(
+    State(state): State<AppState>,
+    Query(params): Query<DebugRawQuery>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let json = state
+        .media
+        .moviebox
+        .get_details(&params.id)
+        .await
+        .map_err(internal)?;
+    Ok(Json(json))
+}fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(json!({ "error": err.to_string() })),
