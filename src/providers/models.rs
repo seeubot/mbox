@@ -430,18 +430,18 @@ pub fn parse_size_bytes(text: &str) -> Option<u64> {
     let parts: Vec<&str> = text.split_whitespace().collect();
     for i in 0..parts.len() {
         let clean = parts[i].trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '.');
-        if let Ok(num) = clean.parse::<f64>()
-            && i + 1 < parts.len()
-        {
-            let unit = parts[i + 1]
-                .trim_matches(|c: char| !c.is_ascii_alphabetic())
-                .to_ascii_uppercase();
-            match unit.as_str() {
-                "TB" | "TIB" | "T" => return Some((num * 1_099_511_627_776.0) as u64),
-                "GB" | "GIB" | "G" => return Some((num * 1_073_741_824.0) as u64),
-                "MB" | "MIB" | "M" => return Some((num * 1_048_576.0) as u64),
-                "KB" | "KIB" | "K" => return Some((num * 1_024.0) as u64),
-                _ => {}
+        if let Ok(num) = clean.parse::<f64>() {
+            if i + 1 < parts.len() {
+                let unit = parts[i + 1]
+                    .trim_matches(|c: char| !c.is_ascii_alphabetic())
+                    .to_ascii_uppercase();
+                match unit.as_str() {
+                    "TB" | "TIB" | "T" => return Some((num * 1_099_511_627_776.0) as u64),
+                    "GB" | "GIB" | "G" => return Some((num * 1_073_741_824.0) as u64),
+                    "MB" | "MIB" | "M" => return Some((num * 1_048_576.0) as u64),
+                    "KB" | "KIB" | "K" => return Some((num * 1_024.0) as u64),
+                    _ => {}
+                }
             }
         }
         let upper = clean.to_ascii_uppercase();
@@ -455,10 +455,10 @@ pub fn parse_size_bytes(text: &str) -> Option<u64> {
             ("KIB", 1_024.0),
             ("KB", 1_024.0),
         ] {
-            if let Some(num_str) = upper.strip_suffix(suffix)
-                && let Ok(num) = num_str.parse::<f64>()
-            {
-                return Some((num * multiplier) as u64);
+            if let Some(num_str) = upper.strip_suffix(suffix) {
+                if let Ok(num) = num_str.parse::<f64>() {
+                    return Some((num * multiplier) as u64);
+                }
             }
         }
     }
@@ -541,7 +541,7 @@ mod tests {
         assert_eq!(parse_size_bytes("450MB"), Some(471_859_200));
         assert_eq!(parse_size_bytes("512 KB"), Some(524_288));
         assert_eq!(parse_size_bytes("1 TB"), Some(1_099_511_627_776));
-        assert_eq!(parse_size_bytes("💾 2.25 GB ⚡"), Some(2_415_919_104));
+        assert_eq!(parse_size_bytes("Ã°Å¸â€™Â¾ 2.25 GB Ã¢Å¡Â¡"), Some(2_415_919_104));
         assert_eq!(parse_size_bytes("No size here"), None);
         assert_eq!(parse_size_bytes(""), None);
     }

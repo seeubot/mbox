@@ -178,7 +178,7 @@ impl FourKHdHubClient {
         let mut preflight_tasks = futures::stream::FuturesUnordered::new();
         let mut seen = std::collections::HashSet::new();
         let mut spawned_preflights = 0usize;
-        let mut fallbacks = Vec::new();
+        let mut fallbacks: Vec<(bool, i64, String, String, Vec<(String, String)>)> = Vec::new();
 
         loop {
             tokio::select! {
