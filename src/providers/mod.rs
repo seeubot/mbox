@@ -1,4 +1,5 @@
-﻿pub mod models;
+pub mod fourkhdhub;
+pub mod models;
 pub mod moviebox;
 pub use models::{
     AudioTrackOption, CatalogItem, Episode, MediaDetails, MediaType, PlaybackSource, ProviderError,

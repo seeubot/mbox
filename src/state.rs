@@ -1,13 +1,13 @@
-﻿use crate::providers::moviebox::client::MovieBoxClient;
+use crate::service::MediaService;
 use std::sync::Arc;
 #[derive(Clone)]
 pub struct AppState {
-    pub moviebox: Arc<MovieBoxClient>,
+    pub media: Arc<MediaService>,
 }
 impl AppState {
     pub fn new() -> Self {
         Self {
-            moviebox: Arc::new(MovieBoxClient::new()),
+            media: Arc::new(MediaService::new()),
         }
     }
 }
