@@ -1,6 +1,7 @@
 use super::client::FourKHdHubError;
 use crate::providers::models::ResolutionIntent;
 use reqwest::Url;
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use scraper::{Html, Selector};
 use std::net::IpAddr;
 use std::sync::LazyLock;
@@ -58,14 +59,14 @@ pub async fn resolve(
             .filter_map(|node| {
                 let href = node.value().attr("href")?;
                 let label = node.text().collect::<String>();
-                if let Some(unwrapped) = unwrap_watch_online_url(href)
-                    && let Ok(valid) = validate_playback_url(&unwrapped)
-                {
+                if let Some(unwrapped) = unwrap_watch_online_url(href) {
+                    if let Ok(valid) = validate_playback_url(&unwrapped) {
                     return Some((
                         score(&valid, "Watch Online", intent),
                         valid,
                         "Watch Online".to_string(),
                     ));
+                }
                 }
                 validate_playback_url(href).ok().map(|url| {
                     let url = pixeldrain_api_url(&url).unwrap_or(url);
@@ -366,7 +367,7 @@ fn normalize_playback_url_str(raw: &str) -> Option<Url> {
             segment
                 .split(':')
                 .map(|sub| {
-                    percent_encoding::utf8_percent_encode(sub, percent_encoding::NON_ALPHANUMERIC)
+                    utf8_percent_encode(sub, NON_ALPHANUMERIC)
                         .to_string()
                 })
                 .collect::<Vec<_>>()
