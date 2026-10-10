@@ -183,9 +183,13 @@ impl FourKHdHubClient {
         loop {
             tokio::select! {
                 Some(resolve_res) = resolve_tasks.next(), if !resolve_tasks.is_empty() => {
-                    if let Ok(mut cand_list) = resolve_res {
-                        cand_list.sort_by_key(|(url, label, _)| hubcloud::score(url, label, intent));
-                        for (url, label, headers) in cand_list {
+                    if let Ok(cand_list) = resolve_res {
+                        let mut owned: Vec<(String, String, Vec<(String, String)>)> = cand_list
+                            .into_iter()
+                            .map(|(url, label, headers)| (url.to_string(), label.to_string(), headers))
+                            .collect();
+                        owned.sort_by_key(|(url, label, _)| hubcloud::score(url, label, intent));
+                        for (url, label, headers) in owned {
                             if spawned_preflights >= 6 || !seen.insert(url.clone()) {
                                 continue;
                             }
@@ -232,14 +236,14 @@ impl FourKHdHubClient {
                             );
                             return Ok(PlaybackSource {
                                 provider: ProviderKind::FourKHdHub,
-                                url: playable_url,
+                                url: playable_url.to_string(),
                                 headers,
                                 subtitle: None,
                                 source_label: label,
                                 max_height: None,
                             });
                         }
-                        fallbacks.push((is_seekable, resolved_score, playable_url, label, headers));
+                        fallbacks.push((is_seekable, resolved_score, playable_url.to_string(), label.to_string(), headers));
                     }
                 }
                 else => break,
@@ -260,7 +264,7 @@ impl FourKHdHubClient {
             );
             return Ok(PlaybackSource {
                 provider: ProviderKind::FourKHdHub,
-                url: playable_url,
+                url: playable_url.to_string(),
                 headers,
                 subtitle: None,
                 source_label: label,
