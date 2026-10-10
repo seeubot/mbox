@@ -1,4 +1,4 @@
-﻿use axum::{
+use axum::{
     extract::{Query, State},
     http::StatusCode,
     routing::get,
@@ -57,14 +57,21 @@ struct StreamsQuery {
     season: usize,
     #[serde(default)]
     episode: usize,
+    #[serde(default)]
+    audio: Option<String>,
 }
 async fn streams(
     State(state): State<AppState>,
     Query(params): Query<StreamsQuery>,
 ) -> Result<Json<StreamsResponse>, (StatusCode, Json<Value>)> {
+    let effective_id = params
+        .audio
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&params.id);
     let releases = ReleaseProvider::episode_streams(
         &*state.moviebox,
-        &params.id,
+        effective_id,
         params.season,
         params.episode,
     )
