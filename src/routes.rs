@@ -148,21 +148,6 @@ async fn debug_raw(
         .await
         .map_err(internal)?;
     Ok(Json(json))
-}#[derive(Deserialize)]
-struct DebugRawQuery {
-    id: String,
-}
-async fn debug_raw(
-    State(state): State<AppState>,
-    Query(params): Query<DebugRawQuery>,
-) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let json = state
-        .media
-        .moviebox
-        .get_details(&params.id)
-        .await
-        .map_err(internal)?;
-    Ok(Json(json))
 }fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
