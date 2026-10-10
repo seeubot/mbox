@@ -1,4 +1,4 @@
-﻿use rand::Rng;
+﻿use rand::RngExt;
 use base64::Engine;
 use hmac::{Hmac, KeyInit, Mac};
 use md5::Md5;
@@ -322,6 +322,7 @@ mod tests {
         assert_eq!(parsed["X-Play-Mode"], "2");
     }
 }
+
 
 
 
