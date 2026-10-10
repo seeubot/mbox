@@ -1,4 +1,4 @@
-﻿use crate::providers::{CatalogItem, MediaDetails, Release};
+use crate::providers::{CatalogItem, MediaDetails, Release};
 use serde::Serialize;
 #[derive(Serialize)]
 pub struct SearchResponse {
@@ -40,11 +40,23 @@ pub struct DetailsResponse {
     pub genres: Vec<String>,
     pub imdb_rating: Option<String>,
     pub audio_tracks: Vec<AudioTrack>,
+    pub seasons: Vec<SeasonResponse>,
 }
 #[derive(Serialize)]
 pub struct AudioTrack {
     pub language: String,
     pub subject_id: String,
+}
+#[derive(Serialize)]
+pub struct SeasonResponse {
+    pub number: usize,
+    pub episodes: Vec<EpisodeResponse>,
+}
+#[derive(Serialize)]
+pub struct EpisodeResponse {
+    pub number: usize,
+    pub title: Option<String>,
+    pub overview: Option<String>,
 }
 impl From<MediaDetails> for DetailsResponse {
     fn from(d: MediaDetails) -> Self {
@@ -65,6 +77,22 @@ impl From<MediaDetails> for DetailsResponse {
                 .map(|dub| AudioTrack {
                     language: dub.label,
                     subject_id: dub.subject_id,
+                })
+                .collect(),
+            seasons: d
+                .seasons
+                .into_iter()
+                .map(|s| SeasonResponse {
+                    number: s.number,
+                    episodes: s
+                        .episodes
+                        .into_iter()
+                        .map(|e| EpisodeResponse {
+                            number: e.number,
+                            title: e.title,
+                            overview: e.overview,
+                        })
+                        .collect(),
                 })
                 .collect(),
         }
