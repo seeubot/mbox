@@ -1,0 +1,19 @@
+﻿[package]
+name = "mbox"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+thiserror = "2"
+url = "2"
+scraper = "0.20"
+lru = "0.12"
+md-5 = "0.10"
+base64 = "0.22"
+tower-http = { version = "0.6", features = ["trace"] }
