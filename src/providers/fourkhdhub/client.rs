@@ -163,7 +163,7 @@ impl FourKHdHubClient {
                         hubcloud::resolve_greenmotors(&client, &mirror_url, intent).await
                     } else {
                         hubcloud::validate_playback_url(&mirror_url)
-                            .map(|url| vec![(url, mirror_label, mirror_headers)])
+                            .map(|url| vec![(url.to_string(), mirror_label, mirror_headers)])
                     }
                 };
                 tokio::time::timeout(std::time::Duration::from_millis(7000), fetch)
@@ -183,13 +183,9 @@ impl FourKHdHubClient {
         loop {
             tokio::select! {
                 Some(resolve_res) = resolve_tasks.next(), if !resolve_tasks.is_empty() => {
-                    if let Ok(cand_list) = resolve_res {
-                        let mut owned: Vec<(String, String, Vec<(String, String)>)> = cand_list
-                            .into_iter()
-                            .map(|(url, label, headers)| (url.to_string(), label.to_string(), headers))
-                            .collect();
-                        owned.sort_by_key(|(url, label, _)| hubcloud::score(url, label, intent));
-                        for (url, label, headers) in owned {
+                    if let Ok(mut cand_list) = resolve_res {
+                        cand_list.sort_by_key(|(url, label, _)| hubcloud::score(url, label, intent));
+                        for (url, label, headers) in cand_list {
                             if spawned_preflights >= 6 || !seen.insert(url.clone()) {
                                 continue;
                             }
