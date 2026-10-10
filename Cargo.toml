@@ -17,3 +17,7 @@ lru = "0.12"
 md-5 = "0.10"
 base64 = "0.22"
 tower-http = { version = "0.6", features = ["trace"] }
+hmac = "0.12"
+md5 = "0.7"
+log = "0.4"
+dirs = "5"

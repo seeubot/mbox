@@ -3,7 +3,15 @@ use serde_json::{json, Value};
 use std::net::SocketAddr;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+mod api_types;
+mod cache;
+mod config;
+mod logging;
+mod models;
+mod net;
+mod providers;
 mod routes;
+mod service;
 mod state;
 #[tokio::main]
 async fn main() {
@@ -14,10 +22,11 @@ async fn main() {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
+    let app_state = state::AppState::new();
     let app = Router::new()
         .route("/", get(health))
         .route("/health", get(health))
-        .nest("/api", routes::router())
+        .nest("/api", routes::router(app_state))
         .layer(TraceLayer::new_for_http());
     let port = std::env::var("PORT")
         .ok()

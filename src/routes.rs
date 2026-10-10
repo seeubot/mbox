@@ -1,53 +1,86 @@
-﻿use axum::{extract::Query, routing::get, Json, Router};
+﻿use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    routing::get,
+    Json, Router,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
-pub fn router() -> Router {
+use crate::api_types::{DetailsResponse, SearchResponse, StreamsResponse};
+use crate::providers::{Provider, ReleaseProvider};
+use crate::state::AppState;
+pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/search", get(search))
-        .route("/homepage", get(homepage))
         .route("/details", get(details))
+        .route("/streams", get(streams))
         .route("/providers", get(providers))
+        .with_state(state)
 }
 #[derive(Deserialize)]
 struct SearchQuery {
     q: String,
     #[serde(default)]
-    provider: Option<String>,
-    #[serde(default)]
     page: Option<usize>,
 }
-async fn search(Query(params): Query<SearchQuery>) -> Json<Value> {
-    Json(json!({
-        "query": params.q,
-        "provider": params.provider.unwrap_or_else(|| "moviebox".to_string()),
-        "page": params.page.unwrap_or(1),
-        "results": [],
-        "status": "stub",
-    }))
-}
-async fn homepage() -> Json<Value> {
-    Json(json!({
-        "tab": "trending",
-        "items": [],
-        "status": "stub",
+async fn search(
+    State(state): State<AppState>,
+    Query(params): Query<SearchQuery>,
+) -> Result<Json<SearchResponse>, (StatusCode, Json<Value>)> {
+    let page = params.page.unwrap_or(1);
+    let results = state
+        .moviebox
+        .search(&params.q, page)
+        .await
+        .map_err(internal)?;
+    Ok(Json(SearchResponse {
+        query: params.q,
+        page,
+        results: results.into_iter().map(Into::into).collect(),
     }))
 }
 #[derive(Deserialize)]
 struct DetailsQuery {
-    provider: String,
     id: String,
 }
-async fn details(Query(params): Query<DetailsQuery>) -> Json<Value> {
-    Json(json!({
-        "provider": params.provider,
-        "id": params.id,
-        "title": null,
-        "status": "stub",
+async fn details(
+    State(state): State<AppState>,
+    Query(params): Query<DetailsQuery>,
+) -> Result<Json<DetailsResponse>, (StatusCode, Json<Value>)> {
+    let details = state.moviebox.details(&params.id).await.map_err(internal)?;
+    Ok(Json(details.into()))
+}
+#[derive(Deserialize)]
+struct StreamsQuery {
+    id: String,
+    #[serde(default)]
+    season: usize,
+    #[serde(default)]
+    episode: usize,
+}
+async fn streams(
+    State(state): State<AppState>,
+    Query(params): Query<StreamsQuery>,
+) -> Result<Json<StreamsResponse>, (StatusCode, Json<Value>)> {
+    let releases = state
+        .moviebox
+        .episode_streams(&params.id, params.season, params.episode)
+        .await
+        .map_err(internal)?;
+    Ok(Json(StreamsResponse {
+        id: params.id,
+        provider: "moviebox".to_string(),
+        streams: releases.into_iter().map(Into::into).collect(),
     }))
 }
 async fn providers() -> Json<Value> {
     Json(json!({
-        "providers": ["moviebox", "fourkhdhub", "dramachi"],
-        "status": "stub",
+        "providers": ["moviebox"],
     }))
+}
+fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({ "error": err.to_string() })),
+    )
 }
