@@ -3,10 +3,8 @@ use crate::providers::models::{
     CatalogItem, MediaDetails, PlaybackSource, ProviderKind, Release, ResolutionIntent,
 };
 use reqwest::Url;
-
 const DEFAULT_BASE_URL: &str = "https://4khdhub.one/";
 const BROWSER_UA: &str = crate::net::DEFAULT_BROWSER_USER_AGENT;
-
 #[derive(thiserror::Error, Debug)]
 pub enum FourKHdHubError {
     #[error("network error: {0}")]
@@ -53,23 +51,20 @@ impl FourKHdHubError {
         }
     }
 }
-
 type PageCache = std::sync::Arc<std::sync::Mutex<Option<(String, std::time::Instant, String)>>>;
-
+type OwnedCandidate = (String, String, Vec<(String, String)>);
 #[derive(Clone)]
 pub struct FourKHdHubClient {
     client: reqwest::Client,
     base_url: Url,
     page_cache: PageCache,
 }
-
 impl FourKHdHubClient {
     pub fn new() -> Result<Self, FourKHdHubError> {
         let base = std::env::var("MOVIEBOX_FOURKHDHUB_URL")
             .unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
         Self::with_base_url(&base)
     }
-
     pub fn with_base_url(base: &str) -> Result<Self, FourKHdHubError> {
         let base_url =
             Url::parse(base).map_err(|_| FourKHdHubError::InvalidUrl(base.to_string()))?;
@@ -82,7 +77,6 @@ impl FourKHdHubClient {
             page_cache: std::sync::Arc::new(std::sync::Mutex::new(None)),
         })
     }
-
     pub async fn health_check(&self) -> Result<(), FourKHdHubError> {
         let response = self.client.get(self.base_url.clone()).send().await?;
         if !response.status().is_success() {
@@ -93,23 +87,21 @@ impl FourKHdHubClient {
         }
         Ok(())
     }
-
     pub async fn search(&self, query: &str) -> Result<Vec<CatalogItem>, FourKHdHubError> {
         let mut url = self.base_url.clone();
         url.query_pairs_mut().append_pair("s", query);
         let html = self.fetch_text(url).await?;
         parser::parse_search(&self.base_url, &html)
     }
-
     async fn fetch_cached_page(&self, id: &str) -> Result<String, FourKHdHubError> {
         let url = self.provider_url(id)?;
         let key = url.as_str().to_string();
-        if let Ok(lock) = self.page_cache.lock()
-            && let Some((cached_key, ts, html)) = lock.as_ref()
-            && cached_key == &key
-            && ts.elapsed() < std::time::Duration::from_secs(60)
-        {
-            return Ok(html.clone());
+        if let Ok(lock) = self.page_cache.lock() {
+            if let Some((cached_key, ts, html)) = lock.as_ref() {
+                if cached_key == &key && ts.elapsed() < std::time::Duration::from_secs(60) {
+                    return Ok(html.clone());
+                }
+            }
         }
         let html = self.fetch_text(url).await?;
         if let Ok(mut lock) = self.page_cache.lock() {
@@ -117,12 +109,10 @@ impl FourKHdHubClient {
         }
         Ok(html)
     }
-
     pub async fn details(&self, id: &str) -> Result<MediaDetails, FourKHdHubError> {
         let html = self.fetch_cached_page(id).await?;
         parser::parse_details(id, &html)
     }
-
     pub async fn releases(
         &self,
         id: &str,
@@ -132,7 +122,6 @@ impl FourKHdHubClient {
         let html = self.fetch_cached_page(id).await?;
         parser::parse_releases(&html, season, episode)
     }
-
     pub async fn resolve_release(
         &self,
         release: &Release,
@@ -152,7 +141,9 @@ impl FourKHdHubClient {
             let mirror_label = mirror.label.clone();
             let mirror_headers = mirror.headers.clone();
             resolve_tasks.push(async move {
-                let fetch = async {
+                let fetch: std::pin::Pin<
+                    Box<dyn std::future::Future<Output = Result<Vec<OwnedCandidate>, FourKHdHubError>> + Send>,
+                > = Box::pin(async move {
                     if mirror_url.contains("hubcloud.") {
                         hubcloud::resolve(&client, &mirror_url, intent).await
                     } else if mirror_url.contains("hubdrive.") {
@@ -162,10 +153,15 @@ impl FourKHdHubClient {
                     {
                         hubcloud::resolve_greenmotors(&client, &mirror_url, intent).await
                     } else {
-                        hubcloud::validate_playback_url(&mirror_url)
-                            .map(|url| vec![(url.to_string(), mirror_label, mirror_headers)])
+                        match hubcloud::validate_playback_url(&mirror_url) {
+                            Ok(url) => {
+                                let owned: String = url.to_string();
+                                Ok(vec![(owned, mirror_label, mirror_headers)])
+                            }
+                            Err(e) => Err(e),
+                        }
                     }
-                };
+                });
                 tokio::time::timeout(std::time::Duration::from_millis(7000), fetch)
                     .await
                     .map_err(|_| {
@@ -174,12 +170,10 @@ impl FourKHdHubClient {
                     .and_then(|res| res)
             });
         }
-
         let mut preflight_tasks = futures::stream::FuturesUnordered::new();
         let mut seen = std::collections::HashSet::new();
         let mut spawned_preflights = 0usize;
         let mut fallbacks: Vec<(bool, i64, String, String, Vec<(String, String)>)> = Vec::new();
-
         loop {
             tokio::select! {
                 Some(resolve_res) = resolve_tasks.next(), if !resolve_tasks.is_empty() => {
@@ -232,20 +226,19 @@ impl FourKHdHubClient {
                             );
                             return Ok(PlaybackSource {
                                 provider: ProviderKind::FourKHdHub,
-                                url: playable_url.to_string(),
+                                url: playable_url,
                                 headers,
                                 subtitle: None,
                                 source_label: label,
                                 max_height: None,
                             });
                         }
-                        fallbacks.push((is_seekable, resolved_score, playable_url.to_string(), label.to_string(), headers));
+                        fallbacks.push((is_seekable, resolved_score, playable_url, label, headers));
                     }
                 }
                 else => break,
             }
         }
-
         if spawned_preflights == 0 {
             return Err(FourKHdHubError::NoPlayableMirror(
                 "no working mirror links extracted".into(),
@@ -260,7 +253,7 @@ impl FourKHdHubClient {
             );
             return Ok(PlaybackSource {
                 provider: ProviderKind::FourKHdHub,
-                url: playable_url.to_string(),
+                url: playable_url,
                 headers,
                 subtitle: None,
                 source_label: label,
@@ -275,29 +268,27 @@ impl FourKHdHubClient {
             "all candidate mirrors failed preflight".into(),
         ))
     }
-
     pub async fn preflight(
         &self,
         url: &str,
         headers: &[(String, String)],
     ) -> Result<String, FourKHdHubError> {
-        self.preflight_with_seekable(url, headers)
+        self.preflight_with_seekable(url.to_string(), headers.to_vec())
             .await
             .map(|(u, _)| u)
     }
-
     async fn preflight_with_seekable(
         &self,
-        url: &str,
-        headers: &[(String, String)],
+        url: String,
+        headers: Vec<(String, String)>,
     ) -> Result<(String, bool), FourKHdHubError> {
         let probe = async {
             hubcloud::validate_playback_url(&url)?;
             let mut request = self
                 .client
-                .get(url)
+                .get(&url)
                 .header(reqwest::header::RANGE, "bytes=0-8191");
-            for (name, value) in &headers {
+            for (name, value) in headers.iter() {
                 request = request.header(name, value);
             }
             let response = request.send().await?.error_for_status()?;
@@ -330,7 +321,6 @@ impl FourKHdHubClient {
                         "upstream mirror reported expired file link".into(),
                     ));
                 }
-
                 let wrapped = final_url
                     .query_pairs()
                     .find(|(name, _)| name == "link")
@@ -346,7 +336,7 @@ impl FourKHdHubClient {
                     .client
                     .get(&wrapped)
                     .header(reqwest::header::RANGE, "bytes=0-8191");
-                for (name, value) in &headers {
+                for (name, value) in headers.iter() {
                     wrapped_request = wrapped_request.header(name, value);
                 }
                 let wrapped_response = wrapped_request.send().await?.error_for_status()?;
@@ -386,19 +376,16 @@ impl FourKHdHubClient {
             }
             Ok((final_url.to_string(), is_seekable))
         };
-
         tokio::time::timeout(std::time::Duration::from_millis(3500), probe)
             .await
             .map_err(|_| {
                 FourKHdHubError::NoPlayableMirror("mirror preflight probe timed out (3.5s)".into())
             })?
     }
-
     async fn fetch_text(&self, url: Url) -> Result<String, FourKHdHubError> {
         let response = self.client.get(url).send().await?.error_for_status()?;
         Ok(response.text().await?)
     }
-
     fn provider_url(&self, id: &str) -> Result<Url, FourKHdHubError> {
         let url = self
             .base_url
@@ -410,21 +397,18 @@ impl FourKHdHubClient {
         Ok(url)
     }
 }
-
 fn build_client() -> reqwest::Client {
     crate::net::http_client_builder()
         .timeout(std::time::Duration::from_secs(20))
         .connect_timeout(std::time::Duration::from_secs(5))
         .user_agent(BROWSER_UA)
-        .redirect(reqwest::redirect::Policy::limited(5))
+        .redirect(reqwest::redirect::policy::limited(5))
         .build()
         .unwrap_or_default()
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[tokio::test]
     async fn rejects_non_fourkhdhub_release() {
         let client = FourKHdHubClient::new().expect("client creation");
@@ -447,14 +431,12 @@ mod tests {
                 .is_err()
         );
     }
-
     #[test]
     fn validates_provider_url_host_matching() {
         let client = FourKHdHubClient::new().expect("client creation");
         assert!(client.provider_url("movie/inception-2010").is_ok());
         assert!(client.provider_url("https://evil.com/movie").is_err());
     }
-
     #[tokio::test]
     async fn preflight_blocks_loopback_ssrf_and_prioritizes_seekable_mirrors() {
         let client = FourKHdHubClient::new().expect("client");
@@ -464,7 +446,6 @@ mod tests {
                 .await
                 .is_err()
         );
-
         let mut candidates = [
             (
                 false,
