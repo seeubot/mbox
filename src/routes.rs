@@ -80,15 +80,7 @@ async fn streams(
     State(state): State<AppState>,
     Query(params): Query<StreamsQuery>,
 ) -> Result<Json<StreamsResponse>, (StatusCode, Json<Value>)> {
-    let effective_id = if params.season > 0 && params.episode > 0 {
-        params.id.as_str()
-    } else {
-        params
-            .audio
-            .as_deref()
-            .filter(|s| !s.is_empty())
-            .unwrap_or(&params.id)
-    };
+    let effective_id = params.id.as_str();
     let title = params.title.clone().unwrap_or_default();
     let releases = state
         .media
