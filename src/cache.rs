@@ -49,3 +49,4 @@ pub fn atomic_write_file(path: &Path, data: &[u8]) -> std::io::Result<()> {
     }
     std::fs::write(path, data)
 }
+
