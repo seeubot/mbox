@@ -185,7 +185,6 @@ pub fn build_signed_headers(
 }
 
 pub(crate) fn generate_client_info_and_ua() -> (String, String) {
-    use rand::Rng;
     let mut rng = rand::rng();
 
     let android_versions = [
@@ -214,11 +213,11 @@ pub(crate) fn generate_client_info_and_ua() -> (String, String) {
         "Europe/London",
     ];
 
-    let android = android_versions[rng.gen_range(0..android_versions.len())];
-    let device = redmi_devices[rng.gen_range(0..redmi_devices.len())];
-    let version_code = version_codes[rng.gen_range(0..version_codes.len())];
-    let network = network_types[rng.gen_range(0..network_types.len())];
-    let timezone = timezones[rng.gen_range(0..timezones.len())];
+    let android = android_versions[rng.random_range(0..android_versions.len())];
+    let device = redmi_devices[rng.random_range(0..redmi_devices.len())];
+    let version_code = version_codes[rng.random_range(0..version_codes.len())];
+    let network = network_types[rng.random_range(0..network_types.len())];
+    let timezone = timezones[rng.random_range(0..timezones.len())];
     let gaid = random_uuid();
     let device_id = random_hex(32);
 
@@ -236,10 +235,9 @@ pub(crate) fn generate_client_info_and_ua() -> (String, String) {
 }
 
 fn random_hex(len: usize) -> String {
-    use rand::Rng;
     let mut rng = rand::rng();
     (0..len)
-        .map(|_| format!("{:x}", rng.gen_range(0..16)))
+        .map(|_| format!("{:x}", rng.random_range(0..16)))
         .collect()
 }
 
@@ -255,16 +253,15 @@ fn random_uuid() -> String {
 }
 
 pub(crate) fn random_spoofed_ip() -> String {
-    use rand::Rng;
     let mut rng = rand::rng();
 
     let prefixes: &[&str] = &[
         "103.241", "49.36", "117.195", "106.198", "122.162", "157.32", "182.70", "103.58", "27.60",
         "59.90",
     ];
-    let prefix = prefixes[rng.gen_range(0..prefixes.len())];
-    let c: u8 = rng.gen_range(1..254);
-    let d: u8 = rng.gen_range(1..254);
+    let prefix = prefixes[rng.random_range(0..prefixes.len())];
+    let c: u8 = rng.random_range(1..254);
+    let d: u8 = rng.random_range(1..254);
     format!("{}.{}.{}", prefix, c, d)
 }
 
@@ -325,5 +322,7 @@ mod tests {
         assert_eq!(parsed["X-Play-Mode"], "2");
     }
 }
+
+
 
 
