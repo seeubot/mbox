@@ -1,4 +1,5 @@
-﻿use serde::{de::DeserializeOwned, Serialize};
+﻿use md5::{Digest, Md5};
+use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
@@ -12,7 +13,9 @@ fn store() -> &'static Mutex<HashMap<String, Entry>> {
     STORE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 pub fn md5_hex_bytes(input: &[u8]) -> String {
-    format!("{:x}", md5::compute(input))
+    let mut hasher = Md5::new();
+    hasher.update(input);
+    format!("{:x}", hasher.finalize())
 }
 pub fn md5_hex(input: &str) -> String {
     md5_hex_bytes(input.as_bytes())
@@ -49,4 +52,3 @@ pub fn atomic_write_file(path: &Path, data: &[u8]) -> std::io::Result<()> {
     }
     std::fs::write(path, data)
 }
-
