@@ -15,7 +15,12 @@ fn store() -> &'static Mutex<HashMap<String, Entry>> {
 pub fn md5_hex_bytes(input: &[u8]) -> String {
     let mut hasher = Md5::new();
     hasher.update(input);
-    format!("{:x}", hasher.finalize())
+    let digest = hasher.finalize();
+    let mut out = String::with_capacity(digest.len() * 2);
+    for byte in digest.iter() {
+        out.push_str(&format!("{:02x}", byte));
+    }
+    out
 }
 pub fn md5_hex(input: &str) -> String {
     md5_hex_bytes(input.as_bytes())
