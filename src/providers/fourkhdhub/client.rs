@@ -207,7 +207,7 @@ impl FourKHdHubClient {
                             }
                             preflight_tasks.push(async move {
                                 let (playable_url, is_seekable) =
-                                    this.preflight_with_seekable(&url, &merged).await?;
+                                    this.preflight_with_seekable(url.clone(), merged.clone()).await?;
                                 let resolved_score =
                                     cand_score.min(hubcloud::score(&playable_url, &label, intent));
                                 Ok::<_, FourKHdHubError>((
@@ -292,12 +292,12 @@ impl FourKHdHubClient {
         headers: &[(String, String)],
     ) -> Result<(String, bool), FourKHdHubError> {
         let probe = async {
-            hubcloud::validate_playback_url(url)?;
+            hubcloud::validate_playback_url(&url)?;
             let mut request = self
                 .client
                 .get(url)
                 .header(reqwest::header::RANGE, "bytes=0-8191");
-            for (name, value) in headers {
+            for (name, value) in &headers {
                 request = request.header(name, value);
             }
             let response = request.send().await?.error_for_status()?;
@@ -346,7 +346,7 @@ impl FourKHdHubClient {
                     .client
                     .get(&wrapped)
                     .header(reqwest::header::RANGE, "bytes=0-8191");
-                for (name, value) in headers {
+                for (name, value) in &headers {
                     wrapped_request = wrapped_request.header(name, value);
                 }
                 let wrapped_response = wrapped_request.send().await?.error_for_status()?;
