@@ -233,7 +233,7 @@ impl FourKHdHubClient {
                                 max_height: None,
                             });
                         }
-                        fallbacks.push((is_seekable, resolved_score, playable_url, label, headers));
+                        fallbacks.push((is_seekable, resolved_score as i64, playable_url, label, headers));
                     }
                 }
                 else => break,
