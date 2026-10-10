@@ -1,7 +1,8 @@
-﻿use axum::{routing::get, Router, Json};
+use axum::{routing::get, Router, Json};
 use serde_json::{json, Value};
 use std::net::SocketAddr;
 use tower_http::trace::TraceLayer;
+use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod api_types;
 mod cache;
@@ -22,11 +23,16 @@ async fn main() {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
     let app_state = state::AppState::new();
     let app = Router::new()
         .route("/", get(health))
         .route("/health", get(health))
         .nest("/api", routes::router(app_state))
+        .layer(cors)
         .layer(TraceLayer::new_for_http());
     let port = std::env::var("PORT")
         .ok()

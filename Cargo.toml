@@ -16,7 +16,7 @@ scraper = "0.20"
 lru = "0.12"
 md-5 = "0.11"
 base64 = "0.22"
-tower-http = { version = "0.6", features = ["trace"] }
+tower-http = { version = "0.6", features = ["trace", "cors"] }
 futures = "0.3"
 hmac = "0.13"
 log = "0.4"
