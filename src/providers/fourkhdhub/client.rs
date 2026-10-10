@@ -402,7 +402,7 @@ fn build_client() -> reqwest::Client {
         .timeout(std::time::Duration::from_secs(20))
         .connect_timeout(std::time::Duration::from_secs(5))
         .user_agent(BROWSER_UA)
-        .redirect(reqwest::redirect::policy::limited(5))
+        .redirect(reqwest::redirect::Policy::limited(5))
         .build()
         .unwrap_or_default()
 }

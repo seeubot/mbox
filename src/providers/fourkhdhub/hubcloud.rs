@@ -257,10 +257,10 @@ fn extract_script_pixeldrain_urls(html: &str) -> Vec<String> {
                         || character == '\\'
                 })
                 .unwrap_or(candidate.len());
-            if let Some(url) = pixeldrain_api_url(&candidate[..end])
-                && !urls.contains(&url)
-            {
+            if let Some(url) = pixeldrain_api_url(&candidate[..end]) {
+                if !urls.contains(&url) {
                 urls.push(url);
+            }
             }
             remainder = &candidate[end..];
         }
