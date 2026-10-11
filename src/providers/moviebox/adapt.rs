@@ -1,4 +1,4 @@
-use crate::providers::models::{
+﻿use crate::providers::models::{
     AudioTrackOption, CatalogItem, Episode, MediaDetails, MediaType, ProviderError, ProviderKind,
     ProviderMediaId, Release, Season, SourceMirror, SubtitleOption,
 };
@@ -811,7 +811,79 @@ pub fn moviebox_resource_json_to_releases(payload: &serde_json::Value) -> Vec<Re
         .filter(|r| !r.mirrors.is_empty())
         .collect()
 }
-
+pub fn moviebox_resource_detectors_to_releases(
+    payload: &serde_json::Value,
+    season: usize,
+    episode: usize,
+) -> Vec<Release> {
+    let detectors = payload
+        .get("resourceDetectors")
+        .and_then(|r| r.as_array());
+    let Some(detectors) = detectors else {
+        return Vec::new();
+    };
+    let mut releases = Vec::new();
+    for det in detectors {
+        let Some(url) = det.get("downloadUrl").and_then(|u| u.as_str()) else {
+            continue;
+        };
+        if url.is_empty() || is_deprecation_notice_url(url) {
+            continue;
+        }
+        if !url.starts_with("http") {
+            continue;
+        }
+        let size = det
+            .get("totalSize")
+            .and_then(|v| {
+                v.as_str()
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .or_else(|| v.as_u64())
+            })
+            .or_else(|| {
+                det.get("firstSize").and_then(|v| {
+                    v.as_str()
+                        .and_then(|s| s.parse::<u64>().ok())
+                        .or_else(|| v.as_u64())
+                })
+            });
+        let codec = det
+            .get("codecName")
+            .and_then(|c| c.as_str())
+            .map(|s| s.to_string());
+        let resource_id = det
+            .get("resourceId")
+            .and_then(|r| {
+                r.as_str()
+                    .map(|s| s.to_string())
+                    .or_else(|| r.as_u64().map(|n| n.to_string()))
+                    .or_else(|| r.as_i64().map(|n| n.to_string()))
+            });
+        let filename = format!(
+            "Direct {} {}",
+            codec.as_deref().unwrap_or("MP4"),
+            size.map(|s| format!("{}MB", s / 1_048_576)).unwrap_or_default()
+        );
+        releases.push(Release {
+            provider: ProviderKind::MovieBox,
+            filename,
+            quality: Some("1080p".to_string()),
+            codec,
+            language: None,
+            size_bytes: size,
+            season: if season > 0 { Some(season) } else { None },
+            episode: if episode > 0 { Some(episode) } else { None },
+            mirrors: vec![SourceMirror {
+                label: "Direct CDN".to_string(),
+                resolver_url: url.to_string(),
+                headers: vec![],
+                direct_file: true,
+            }],
+            resource_id,
+        });
+    }
+    releases
+}
 #[cfg(test)]
 mod tests {
     use super::*;

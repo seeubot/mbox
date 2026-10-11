@@ -22,6 +22,7 @@ pub fn router(state: AppState) -> Router {
         .route("/streams", get(streams))
         .route("/providers", get(providers))
         .route("/download", get(download))
+        .route("/download-info", get(download_info))
         .route("/debug-raw", get(debug_raw))
         .route("/debug-env", get(debug_env))
         .with_state(state)
@@ -349,7 +350,64 @@ async fn download(
         })?;
     Ok(response)
 }
-fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
+async fn download_info(
+    State(state): State<AppState>,
+    Query(params): Query<DownloadQuery>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let effective_id = params.id.as_str();
+    let title = params.title.clone().unwrap_or_else(|| params.id.clone());
+    let releases = state
+        .media
+        .streams_with_fallback(
+            effective_id,
+            &title,
+            params.season,
+            params.episode,
+            params.audio.as_deref(),
+        )
+        .await
+        .map_err(internal)?;
+    let filtered = filter_by_max_height(releases, params.max_height);
+    let target = filtered.first().ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "No stream available" })),
+        )
+    })?;
+    let url = target
+        .direct_url()
+        .ok_or_else(|| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "No direct URL" })),
+            )
+        })?
+        .to_string();
+    let is_direct_mp4 = url.contains(".mp4");
+    let headers_json: serde_json::Map<String, Value> = target
+        .mirrors
+        .first()
+        .map(|m| {
+            m.headers
+                .iter()
+                .map(|(k, v)| (k.clone(), Value::String(v.clone())))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(Json(json!({
+        "id": params.id,
+        "type": if is_direct_mp4 { "direct" } else { "proxy" },
+        "url": url,
+        "headers": Value::Object(headers_json),
+        "size_bytes": target.size_bytes,
+        "quality": target.quality,
+        "codec": target.codec,
+        "filename": target.filename,
+        "season": params.season,
+        "episode": params.episode,
+        "source_label": target.source_label(),
+    })))
+}fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(json!({ "error": err.to_string() })),

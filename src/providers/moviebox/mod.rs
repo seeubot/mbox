@@ -56,7 +56,7 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
         audio_subject_id: Option<&str>,
     ) -> Result<Vec<crate::providers::models::Release>, ProviderError> {
         let play_subject = audio_subject_id.unwrap_or(id);
-        let (play_info_res, resources_res) = tokio::join!(
+        let (play_info_res, resources_res, details_res) = tokio::join!(
             self.get_play_info(play_subject, season, episode),
             self.get_resources(
                 play_subject,
@@ -69,7 +69,8 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
                 },
                 None,
                 20,
-            )
+            ),
+            self.get_details(play_subject),
         );
         let mut releases = Vec::new();
         let mut seen_urls = std::collections::HashSet::new();
@@ -106,21 +107,46 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
                 }
             }
         }
+        if let Ok(details_json) = details_res {
+            for rel in adapt::moviebox_resource_detectors_to_releases(
+                &details_json,
+                season,
+                episode,
+            ) {
+                if let Some(url) = rel.direct_url() {
+                    let base = url.split('?').next().unwrap_or(url).to_string();
+                    if !base.is_empty() && seen_urls.contains(&base) {
+                        continue;
+                    }
+                    seen_urls.insert(base);
+                }
+                releases.push(rel);
+            }
+        }
         if releases.is_empty() {
             return Err(ProviderError::Unavailable(
                 "No stream sources available".to_string(),
             ));
         }
         releases.sort_by(|left, right| {
-            right
-                .resolution_u64()
-                .cmp(&left.resolution_u64())
+            let left_direct = left
+                .mirrors
+                .first()
+                .map(|m| m.resolver_url.contains(".mp4"))
+                .unwrap_or(false);
+            let right_direct = right
+                .mirrors
+                .first()
+                .map(|m| m.resolver_url.contains(".mp4"))
+                .unwrap_or(false);
+            right_direct
+                .cmp(&left_direct)
+                .then_with(|| right.resolution_u64().cmp(&left.resolution_u64()))
                 .then_with(|| right.size_bytes.cmp(&left.size_bytes))
         });
         Ok(releases)
     }
-}
-use client::{MovieBoxClient, ScraperError};
+}use client::{MovieBoxClient, ScraperError};
 use serde_json::{Value, json};
 impl MovieBoxClient {
     pub async fn get_play_info(
