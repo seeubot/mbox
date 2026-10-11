@@ -2,9 +2,6 @@
 use axum::response::Response;
 use axum::http::header;
 use tokio::process::Command;
-use tokio_stream::wrappers::ReceiverStream;
-use std::process::Stdio;
-use tokio::io::AsyncBufReadExt;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -13,6 +10,9 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::process::Stdio;
+use tokio::io::AsyncReadExt;
+use uuid::Uuid;
 use crate::api_types::{DetailsResponse, SearchResponse, StreamsResponse};
 use crate::providers::ProviderKind;
 use crate::state::AppState;
@@ -24,6 +24,7 @@ pub fn router(state: AppState) -> Router {
         .route("/providers", get(providers))
         .route("/download", get(download))
         .route("/debug-raw", get(debug_raw))
+        .route("/debug-env", get(debug_env))
         .with_state(state)
 }
 #[derive(Deserialize)]
@@ -159,6 +160,29 @@ async fn debug_raw(
         .map_err(internal)?;
     Ok(Json(json))
 }
+async fn debug_env() -> Json<Value> {
+    let yt = Command::new("which").arg("yt-dlp").output().await;
+    let ff = Command::new("which").arg("ffmpeg").output().await;
+    let yt_ver = Command::new("yt-dlp").arg("--version").output().await;
+    let ff_ver = Command::new("ffmpeg").arg("-version").output().await;
+    let read = |o: Option<std::process::Output>| -> Option<String> {
+        o.map(|out| {
+            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            if stdout.is_empty() {
+                stderr.lines().next().unwrap_or("").to_string()
+            } else {
+                stdout
+            }
+        })
+    };
+    Json(json!({
+        "yt_dlp_path": read(yt),
+        "ffmpeg_path": read(ff),
+        "yt_dlp_version": read(yt_ver),
+        "ffmpeg_version": read(ff_ver),
+    }))
+}
 #[derive(Deserialize)]
 struct DownloadQuery {
     id: String,
@@ -213,71 +237,104 @@ async fn download(
         .unwrap_or_default();
     let safe_title = title
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' || c == '.' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .trim()
         .to_string();
+    let tmp_dir = std::env::temp_dir();
+    let tmp_path = tmp_dir.join(format!("maya_dl_{}.mp4", Uuid::new_v4()));
+    tracing::info!(
+        "download start: url={} tmp={}",
+        crate::logging::sanitize_url(&url),
+        tmp_path.display()
+    );
     let mut cmd = Command::new("yt-dlp");
     cmd.arg("-f").arg("bv*+ba/b");
     cmd.arg("--no-playlist");
     cmd.arg("--no-warnings");
-    cmd.arg("--quiet");
-    cmd.arg("-o").arg("-");
+    cmd.arg("--no-part");
     cmd.arg("--merge-output-format").arg("mp4");
+    cmd.arg("-o").arg(&tmp_path);
     for (name, value) in &headers {
         cmd.arg("--add-header").arg(format!("{}:{}", name, value));
     }
     cmd.arg(&url);
-    cmd.stdout(Stdio::piped());
+    cmd.stdout(Stdio::null());
     cmd.stderr(Stdio::piped());
     cmd.stdin(Stdio::null());
-    let mut child = cmd.spawn().map_err(|e| {
+    let output = cmd.output().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("Failed to spawn yt-dlp: {}", e) })),
+            Json(json!({ "error": format!("yt-dlp spawn failed: {}", e) })),
         )
     })?;
-    let stdout = child.stdout.take().ok_or_else(|| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": "Failed to capture stdout" })),
-        )
-    })?;
-    if let Some(mut stderr) = child.stderr.take() {
-        tokio::spawn(async move {
-            let mut reader = tokio::io::BufReader::new(&mut stderr).lines();
-            while let Ok(Some(line)) = reader.next_line().await {
-                tracing::debug!("yt-dlp: {}", line);
-            }
-        });
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let tail: String = stderr
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .rev()
+            .take(15)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>()
+            .join("\n");
+        tracing::error!("yt-dlp failed: {}", tail);
+        let _ = tokio::fs::remove_file(&tmp_path).await;
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({
+                "error": "yt-dlp failed",
+                "exit_code": output.status.code(),
+                "stderr": tail,
+            })),
+        ));
     }
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<axum::body::Bytes, std::io::Error>>(16);
-    tokio::spawn(async move {
-        let mut reader = tokio::io::BufReader::new(stdout);
-        let mut buf = vec![0u8; 64 * 1024];
-        use tokio::io::AsyncReadExt;
-        loop {
-            match reader.read(&mut buf).await {
-                Ok(0) => break,
-                Ok(n) => {
-                    let chunk = axum::body::Bytes::copy_from_slice(&buf[..n]);
-                    if tx.send(Ok(chunk)).await.is_err() {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    let _ = tx.send(Err(e)).await;
-                    break;
-                }
-            }
-        }
-        let _ = child.wait().await;
-    });
-    let body = Body::from_stream(ReceiverStream::new(rx));
+    let meta = tokio::fs::metadata(&tmp_path).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("file not found after download: {}", e) })),
+        )
+    })?;
+    let size = meta.len();
+    if size == 0 {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let _ = tokio::fs::remove_file(&tmp_path).await;
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({
+                "error": "yt-dlp produced an empty file",
+                "stderr": stderr.lines().take(15).collect::<Vec<_>>().join("\n"),
+            })),
+        ));
+    }
+    tracing::info!("download complete: {} bytes", size);
+    let file = tokio::fs::File::open(&tmp_path).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("file open failed: {}", e) })),
+        )
+    })?;
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let body = Body::from_stream(stream);
     let filename = format!("{}.mp4", safe_title);
+    let cleanup_path = tmp_path.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(120)).await;
+        let _ = tokio::fs::remove_file(&cleanup_path).await;
+    });
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "video/mp4")
+        .header(header::CONTENT_LENGTH, size.to_string())
+        .header(header::ACCEPT_RANGES, "bytes")
         .header(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{}\"", filename),
