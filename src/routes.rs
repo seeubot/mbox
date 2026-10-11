@@ -11,7 +11,6 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::process::Stdio;
-use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 use crate::api_types::{DetailsResponse, SearchResponse, StreamsResponse};
 use crate::providers::ProviderKind;
@@ -161,26 +160,28 @@ async fn debug_raw(
     Ok(Json(json))
 }
 async fn debug_env() -> Json<Value> {
-    let yt = Command::new("which").arg("yt-dlp").output().await;
-    let ff = Command::new("which").arg("ffmpeg").output().await;
-    let yt_ver = Command::new("yt-dlp").arg("--version").output().await;
-    let ff_ver = Command::new("ffmpeg").arg("-version").output().await;
-    let read = |o: Option<std::process::Output>| -> Option<String> {
-        o.map(|out| {
+    let yt_path = Command::new("which").arg("yt-dlp").output().await.ok();
+    let ff_path = Command::new("which").arg("ffmpeg").output().await.ok();
+    let yt_ver = Command::new("yt-dlp").arg("--version").output().await.ok();
+    let ff_ver = Command::new("ffmpeg").arg("-version").output().await.ok();
+    let extract = |o: Option<std::process::Output>| -> Option<String> {
+        o.and_then(|out| {
             let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
             let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-            if stdout.is_empty() {
-                stderr.lines().next().unwrap_or("").to_string()
+            if !stdout.is_empty() {
+                Some(stdout)
+            } else if !stderr.is_empty() {
+                Some(stderr.lines().next().unwrap_or("").to_string())
             } else {
-                stdout
+                None
             }
         })
     };
     Json(json!({
-        "yt_dlp_path": read(yt),
-        "ffmpeg_path": read(ff),
-        "yt_dlp_version": read(yt_ver),
-        "ffmpeg_version": read(ff_ver),
+        "yt_dlp_path": extract(yt_path),
+        "ffmpeg_path": extract(ff_path),
+        "yt_dlp_version": extract(yt_ver),
+        "ffmpeg_version": extract(ff_ver),
     }))
 }
 #[derive(Deserialize)]
