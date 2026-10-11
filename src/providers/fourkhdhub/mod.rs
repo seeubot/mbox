@@ -1,12 +1,9 @@
-mod client;
+﻿mod client;
 mod hubcloud;
 mod parser;
-
 pub use client::{FourKHdHubClient, FourKHdHubError};
-
 use crate::providers::models::{CatalogItem, MediaDetails, ProviderError, ProviderKind, Release};
 use crate::providers::{Provider, ProviderCapabilities, ReleaseProvider};
-
 impl From<FourKHdHubError> for ProviderError {
     fn from(err: FourKHdHubError) -> Self {
         match err {
@@ -17,12 +14,10 @@ impl From<FourKHdHubError> for ProviderError {
         }
     }
 }
-
 impl Provider for FourKHdHubClient {
     fn id(&self) -> ProviderKind {
         ProviderKind::FourKHdHub
     }
-
     fn capabilities(&self) -> ProviderCapabilities {
         ProviderCapabilities {
             supports_search: true,
@@ -32,22 +27,20 @@ impl Provider for FourKHdHubClient {
             supports_homepage: false,
         }
     }
-
     async fn search(&self, query: &str, _page: usize) -> Result<Vec<CatalogItem>, ProviderError> {
         self.search(query).await.map_err(ProviderError::from)
     }
-
     async fn details(&self, id: &str) -> Result<MediaDetails, ProviderError> {
         self.details(id).await.map_err(ProviderError::from)
     }
 }
-
 impl ReleaseProvider for FourKHdHubClient {
     async fn episode_streams(
         &self,
         id: &str,
         season: usize,
         episode: usize,
+        _audio_subject_id: Option<&str>,
     ) -> Result<Vec<Release>, ProviderError> {
         self.releases(id, season, episode)
             .await

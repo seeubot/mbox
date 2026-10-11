@@ -1,4 +1,4 @@
-use axum::body::Body;
+﻿use axum::body::Body;
 use axum::response::Response;
 use axum::http::header;
 use tokio::process::Command;
@@ -92,7 +92,13 @@ async fn streams(
     let title = params.title.clone().unwrap_or_default();
     let releases = state
         .media
-        .streams_with_fallback(effective_id, &title, params.season, params.episode)
+        .streams_with_fallback(
+            effective_id,
+            &title,
+            params.season,
+            params.episode,
+            params.audio.as_deref(),
+        )
         .await
         .map_err(internal)?;
     let filtered = filter_by_max_height(releases, params.max_height);
@@ -152,7 +158,8 @@ async fn debug_raw(
         .await
         .map_err(internal)?;
     Ok(Json(json))
-}#[derive(Deserialize)]
+}
+#[derive(Deserialize)]
 struct DownloadQuery {
     id: String,
     #[serde(default)]
@@ -174,7 +181,13 @@ async fn download(
     let title = params.title.clone().unwrap_or_else(|| params.id.clone());
     let releases = state
         .media
-        .streams_with_fallback(effective_id, &title, params.season, params.episode)
+        .streams_with_fallback(
+            effective_id,
+            &title,
+            params.season,
+            params.episode,
+            params.audio.as_deref(),
+        )
         .await
         .map_err(internal)?;
     let filtered = filter_by_max_height(releases, params.max_height);
@@ -230,7 +243,6 @@ async fn download(
             Json(json!({ "error": "Failed to capture stdout" })),
         )
     })?;
-    // Drain stderr in the background so the process does not block
     if let Some(mut stderr) = child.stderr.take() {
         tokio::spawn(async move {
             let mut reader = tokio::io::BufReader::new(&mut stderr).lines();
@@ -278,7 +290,8 @@ async fn download(
             )
         })?;
     Ok(response)
-}fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
+}
+fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(json!({ "error": err.to_string() })),

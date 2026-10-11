@@ -1,4 +1,4 @@
-pub mod fourkhdhub;
+﻿pub mod fourkhdhub;
 pub mod models;
 pub mod moviebox;
 pub use models::{
@@ -39,5 +39,6 @@ pub trait ReleaseProvider: Send + Sync {
         id: &str,
         season: usize,
         episode: usize,
+        audio_subject_id: Option<&str>,
     ) -> Result<Vec<Release>, ProviderError>;
 }

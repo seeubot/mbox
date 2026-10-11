@@ -1,4 +1,4 @@
-use std::time::Duration;
+﻿use std::time::Duration;
 use tokio::time::timeout;
 use crate::models::BrowseMetrics;
 use crate::providers::fourkhdhub::FourKHdHubClient;
@@ -82,10 +82,17 @@ impl MediaService {
         title: &str,
         season: usize,
         episode: usize,
+        audio_subject_id: Option<&str>,
     ) -> Result<Vec<Release>, ProviderError> {
         let mb_result = timeout(
             Duration::from_secs(5),
-            ReleaseProvider::episode_streams(&self.moviebox, moviebox_id, season, episode),
+            ReleaseProvider::episode_streams(
+                &self.moviebox,
+                moviebox_id,
+                season,
+                episode,
+                audio_subject_id,
+            ),
         )
         .await;
         match mb_result {
@@ -104,7 +111,7 @@ impl MediaService {
         let Some(item) = match_item else {
             return Err(ProviderError::NotFound);
         };
-        ReleaseProvider::episode_streams(fourk, &item.id.value, season, episode).await
+        ReleaseProvider::episode_streams(fourk, &item.id.value, season, episode, None).await
     }
 }
 impl Default for MediaService {

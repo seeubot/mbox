@@ -1,15 +1,12 @@
-pub mod adapt;
+﻿pub mod adapt;
 pub mod client;
 pub mod crypto;
 pub mod session;
 pub mod title;
-
 pub use title::clean_moviebox_title;
-
 pub const STREAM_REFERER: &str = "https://sportslive.wine";
 use crate::providers::models::{CatalogItem, MediaDetails, ProviderError, ProviderKind};
 use crate::providers::{Provider, ProviderCapabilities};
-
 impl From<ScraperError> for ProviderError {
     fn from(err: ScraperError) -> Self {
         match err {
@@ -25,12 +22,10 @@ impl From<ScraperError> for ProviderError {
         }
     }
 }
-
 impl Provider for client::MovieBoxClient {
     fn id(&self) -> ProviderKind {
         ProviderKind::MovieBox
     }
-
     fn capabilities(&self) -> ProviderCapabilities {
         ProviderCapabilities {
             supports_search: true,
@@ -40,7 +35,6 @@ impl Provider for client::MovieBoxClient {
             supports_homepage: true,
         }
     }
-
     async fn search(&self, query: &str, page: usize) -> Result<Vec<CatalogItem>, ProviderError> {
         let json = self
             .search(query, page)
@@ -48,24 +42,24 @@ impl Provider for client::MovieBoxClient {
             .map_err(ProviderError::from)?;
         Ok(adapt::moviebox_search_json_to_catalog(&json))
     }
-
     async fn details(&self, id: &str) -> Result<MediaDetails, ProviderError> {
         let json = self.get_details(id).await.map_err(ProviderError::from)?;
         adapt::moviebox_details_json_to_media_details(&json)
     }
 }
-
 impl crate::providers::ReleaseProvider for client::MovieBoxClient {
     async fn episode_streams(
         &self,
         id: &str,
         season: usize,
         episode: usize,
+        audio_subject_id: Option<&str>,
     ) -> Result<Vec<crate::providers::models::Release>, ProviderError> {
+        let play_subject = audio_subject_id.unwrap_or(id);
         let (play_info_res, resources_res) = tokio::join!(
-            self.get_play_info(id, season, episode),
+            self.get_play_info(play_subject, season, episode),
             self.get_resources(
-                id,
+                play_subject,
                 season,
                 episode,
                 if episode > 0 {
@@ -77,10 +71,8 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
                 20,
             )
         );
-
         let mut releases = Vec::new();
         let mut seen_urls = std::collections::HashSet::new();
-
         if let Ok(json) = play_info_res {
             for rel in adapt::moviebox_play_info_json_to_releases(
                 &json,
@@ -97,7 +89,6 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
                 releases.push(rel);
             }
         }
-
         if let Ok(res_json) = resources_res {
             for rel in adapt::moviebox_resource_json_to_releases(&res_json) {
                 if let Some(url) = rel.direct_url() {
@@ -115,27 +106,22 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
                 }
             }
         }
-
         if releases.is_empty() {
             return Err(ProviderError::Unavailable(
                 "No stream sources available".to_string(),
             ));
         }
-
         releases.sort_by(|left, right| {
             right
                 .resolution_u64()
                 .cmp(&left.resolution_u64())
                 .then_with(|| right.size_bytes.cmp(&left.size_bytes))
         });
-
         Ok(releases)
     }
 }
-
 use client::{MovieBoxClient, ScraperError};
 use serde_json::{Value, json};
-
 impl MovieBoxClient {
     pub async fn get_play_info(
         &self,
@@ -166,24 +152,20 @@ impl MovieBoxClient {
         self.post("/wefeed-mobile-bff/subject-api/search/v2", &payload)
             .await
     }
-
     pub async fn suggest(&self, query: &str) -> Result<Value, ScraperError> {
         self.search(query, 1).await
     }
-
     pub async fn get_details(&self, subject_id: &str) -> Result<Value, ScraperError> {
         let path = format!(
             "/wefeed-mobile-bff/subject-api/get?subjectId={}",
             subject_id
         );
         let mut details = self.get(&path).await?;
-
         let stype = details
             .get("subjectType")
             .and_then(|s| s.as_i64())
             .or_else(|| details.get("stype").and_then(|s| s.as_i64()))
             .unwrap_or(1);
-
         if stype == 2 {
             let season_path = format!(
                 "/wefeed-mobile-bff/subject-api/season-info?subjectId={}",
@@ -195,10 +177,8 @@ impl MovieBoxClient {
                 }
             }
         }
-
         Ok(details)
     }
-
     pub async fn get_homepage(&self, tab_id: &str, page: usize) -> Result<Value, ScraperError> {
         let path = format!(
             "/wefeed-mobile-bff/tab-operating?page={}&tabId={}&version=",
@@ -206,7 +186,6 @@ impl MovieBoxClient {
         );
         self.get(&path).await
     }
-
     pub async fn get_resources(
         &self,
         subject_id: &str,
@@ -225,7 +204,6 @@ impl MovieBoxClient {
         } else {
             String::new()
         };
-
         let path = if season == 0 && episode == 0 {
             format!(
                 "/wefeed-mobile-bff/subject-api/resource?subjectId={}&page={}&perPage={}{}",
@@ -239,7 +217,6 @@ impl MovieBoxClient {
         };
         self.get(&path).await
     }
-
     pub async fn fetch_resource_page(
         &self,
         subject_id: &str,
@@ -249,20 +226,15 @@ impl MovieBoxClient {
         page: usize,
     ) -> Result<(Vec<Value>, Value), ScraperError> {
         let path = resource_page_path(subject_id, season, episode, resolution, page);
-
         let res = self.get(&path).await?;
-
         let items = res
             .get("list")
             .and_then(|l| l.as_array())
             .cloned()
             .unwrap_or_default();
-
         let pager = res.get("pager").cloned().unwrap_or_else(|| json!({}));
-
         Ok((items, pager))
     }
-
     pub async fn fetch_collection_resolutions(
         &self,
         subject_id: &str,
@@ -272,7 +244,6 @@ impl MovieBoxClient {
             subject_id
         );
         let res = self.get(&path).await?;
-
         let mut resolutions = Vec::new();
         if let Some(cols) = res.get("collectionResolutions").and_then(|c| c.as_array()) {
             for col in cols {
@@ -283,7 +254,6 @@ impl MovieBoxClient {
                 }
             }
         }
-
         if resolutions.is_empty() {
             if let Some(list) = res.get("list").and_then(|l| l.as_array()) {
                 for item in list {
@@ -296,15 +266,12 @@ impl MovieBoxClient {
                 }
             }
         }
-
         resolutions.sort_by(|a, b| b.cmp(a));
-
         if resolutions.is_empty() {
             resolutions = vec![1080, 720, 480, 360];
         }
         Ok(resolutions)
     }
-
     pub async fn get_ext_captions(
         &self,
         subject_id: &str,
@@ -317,7 +284,6 @@ impl MovieBoxClient {
         self.get(&path).await
     }
 }
-
 pub fn resource_page_path(
     subject_id: &str,
     season: usize,
@@ -330,7 +296,6 @@ pub fn resource_page_path(
     } else {
         format!("&resolution={}", resolution)
     };
-
     if season == 0 && episode == 0 {
         format!(
             "/wefeed-mobile-bff/subject-api/resource?subjectId={}&page={}&perPage=20{}",
@@ -343,11 +308,9 @@ pub fn resource_page_path(
         )
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_resource_page_path_movie() {
         let path = resource_page_path("12345", 0, 0, 0, 1);
@@ -356,7 +319,6 @@ mod tests {
             "/wefeed-mobile-bff/subject-api/resource?subjectId=12345&page=1&perPage=20"
         );
     }
-
     #[test]
     fn test_resource_page_path_series_with_se_and_ep() {
         let path = resource_page_path("67890", 2, 5, 0, 1);
@@ -365,7 +327,6 @@ mod tests {
             "/wefeed-mobile-bff/subject-api/resource?subjectId=67890&se=2&ep=5&page=1&perPage=20"
         );
     }
-
     #[test]
     fn test_resource_page_path_with_resolution() {
         let path = resource_page_path("67890", 1, 10, 1080, 2);
