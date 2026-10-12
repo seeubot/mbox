@@ -48,19 +48,24 @@ const mockContext = {
 
 // Helper to dynamically load compiled provider modules
 async function getProviderModule(providerName, moduleName) {
+  const fs = require("fs");
+  const distPath = path.join(__dirname, "dist");
+  if (!fs.existsSync(distPath)) {
+    console.error(`❌ dist/ folder missing at ${distPath}`);
+    return null;
+  }
+  const entries = fs.readdirSync(distPath);
+  const lower = String(providerName).toLowerCase();
+  const match = entries.find((e) => e.toLowerCase() === lower);
+  if (!match) {
+    console.error(`❌ No provider directory matches "${providerName}"`);
+    return null;
+  }
   try {
-    const modulePath = path.join(
-      __dirname,
-      "dist",
-      providerName,
-      `${moduleName}.js`,
-    );
+    const modulePath = path.join(__dirname, "dist", match, `${moduleName}.js`);
     return require(modulePath);
   } catch (e) {
-    console.error(
-      `❌ Failed to load ${providerName}/${moduleName}:`,
-      e.message,
-    );
+    console.error(`❌ Failed to load ${match}/${moduleName}: ${e.message}`);
     return null;
   }
 }
@@ -81,7 +86,7 @@ app.get("/api/providers", async (req, res) => {
 
     res.json(providers);
   } catch (error) {
-    console.error("❌ Failed to read manifest.json:", error.message);
+    console.error("âŒ Failed to read manifest.json:", error.message);
     res.status(500).json({ error: "Failed to load providers manifest" });
   }
 });
@@ -236,7 +241,7 @@ app.get("/api/search", async (req, res) => {
     let targetProviders = [];
 
     if (providers) {
-      // 👇 Search ONLY the comma-separated list of installed providers
+      // ðŸ‘‡ Search ONLY the comma-separated list of installed providers
       targetProviders = providers.split(",");
     } else if (provider) {
       targetProviders = [provider];
@@ -265,9 +270,9 @@ app.get("/api/search", async (req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`\n🌉 =========================================`);
-  console.log(`🚀 Vega Provider Bridge API is running!`);
-  console.log(`💻 Local: http://localhost:${PORT}`);
-  console.log(`📱 Mobile: http://<YOUR-COMPUTER-IP>:${PORT}`);
-  console.log(`🌉 =========================================\n`);
+  console.log(`\nðŸŒ‰ =========================================`);
+  console.log(`ðŸš€ Vega Provider Bridge API is running!`);
+  console.log(`ðŸ’» Local: http://localhost:${PORT}`);
+  console.log(`ðŸ“± Mobile: http://<YOUR-COMPUTER-IP>:${PORT}`);
+  console.log(`ðŸŒ‰ =========================================\n`);
 });
