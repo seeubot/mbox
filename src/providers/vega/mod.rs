@@ -144,7 +144,7 @@ impl Provider for VegaBridgeClient {
         }
     }
     async fn search(&self, query: &str, page: usize) -> Result<Vec<CatalogItem>, ProviderError> {
-        let providers = ["kmmovies", "flixhq", "hianime", "kisskh"];
+        let providers = ["kmMovies", "flixhq", "hiAnime", "kissKh"];
         let mut all: Vec<CatalogItem> = Vec::new();
         for provider in &providers {
             match self.search(provider, query, page as u32).await {
