@@ -1,5 +1,12 @@
 ﻿target
 .git
-.github
+.gitignore
 *.md
-.env
+Dockerfile.bak
+supervisord.conf.bak
+K45movies-api/node_modules
+K45movies-api/.git
+K45movies-api/tests
+K45movies-api/bundled
+K45movies-api/manifest.legacy.json
+K45movies-api/node_modules_mock

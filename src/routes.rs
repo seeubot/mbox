@@ -25,6 +25,7 @@ pub fn router(state: AppState) -> Router {
         .route("/download-info", get(download_info))
         .route("/debug-raw", get(debug_raw))
         .route("/debug-env", get(debug_env))
+        .route("/debug-bridge", get(debug_bridge))
         .with_state(state)
 }
 #[derive(Deserialize)]
@@ -407,7 +408,41 @@ async fn download_info(
         "episode": params.episode,
         "source_label": target.source_label(),
     })))
-}fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
+}
+
+async fn debug_bridge() -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let url = std::env::var("NODE_BRIDGE_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:3002".to_string());
+    let probe_url = format!("{}/api/providers", url);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+        })?;
+    let resp = client.get(&probe_url).send().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "error": format!("bridge unreachable: {}", e), "url": probe_url })),
+        )
+    })?;
+    let status = resp.status();
+    let body: Value = resp.json().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "error": format!("invalid json from bridge: {}", e) })),
+        )
+    })?;
+    Ok(Json(json!({
+        "bridge_url": url,
+        "status": status.as_u16(),
+        "response": body,
+    })))
+}
+fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(json!({ "error": err.to_string() })),
