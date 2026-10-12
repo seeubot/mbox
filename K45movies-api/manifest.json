@@ -1,0 +1,406 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-10-05T17:12:23Z",
+  "providers": [
+    {
+      "id": "1cinevood",
+      "name": "1cinevood",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/1cinevood.js",
+      "icon": null
+    },
+    {
+      "id": "4khdhub",
+      "name": "4khdhub",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/4khdhub.js",
+      "icon": null
+    },
+    {
+      "id": "Joya9tv",
+      "name": "Joya9tv",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/Joya9tv.js",
+      "icon": null
+    },
+    {
+      "id": "a111477",
+      "name": "A111477",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/a111477.js",
+      "icon": null
+    },
+    {
+      "id": "anikoto",
+      "name": "Anikoto",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/anikoto.js",
+      "icon": null
+    },
+    {
+      "id": "animetsu",
+      "name": "Animetsu",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/animetsu.js",
+      "icon": null
+    },
+    {
+      "id": "autoEmbed",
+      "name": "Auto Embed",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/autoEmbed.js",
+      "icon": null
+    },
+    {
+      "id": "cinefreak",
+      "name": "Cinefreak",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/cinefreak.js",
+      "icon": null
+    },
+    {
+      "id": "cinemaLuxe",
+      "name": "Cinema Luxe",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/cinemaLuxe.js",
+      "icon": null
+    },
+    {
+      "id": "dooflix",
+      "name": "Dooflix",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/dooflix.js",
+      "icon": null
+    },
+    {
+      "id": "drive",
+      "name": "Drive",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/drive.js",
+      "icon": null
+    },
+    {
+      "id": "eonMovies",
+      "name": "Eon Movies",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/eonMovies.js",
+      "icon": null
+    },
+    {
+      "id": "filmyfly",
+      "name": "Filmyfly",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/filmyfly.js",
+      "icon": null
+    },
+    {
+      "id": "flixhq",
+      "name": "Flixhq",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/flixhq.js",
+      "icon": null
+    },
+    {
+      "id": "gokuHD",
+      "name": "Goku HD",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/gokuHD.js",
+      "icon": null
+    },
+    {
+      "id": "guardahd",
+      "name": "Guardahd",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/guardahd.js",
+      "icon": null
+    },
+    {
+      "id": "hdhub4u",
+      "name": "Hdhub4u",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/hdhub4u.js",
+      "icon": null
+    },
+    {
+      "id": "hiAnime",
+      "name": "Hi Anime",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/hiAnime.js",
+      "icon": null
+    },
+    {
+      "id": "katMovieFix",
+      "name": "Kat Movie Fix",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/katMovieFix.js",
+      "icon": null
+    },
+    {
+      "id": "katmovies",
+      "name": "Katmovies",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/katmovies.js",
+      "icon": null
+    },
+    {
+      "id": "kickAssAnime",
+      "name": "Kick Ass Anime",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/kickAssAnime.js",
+      "icon": null
+    },
+    {
+      "id": "kissKh",
+      "name": "Kiss Kh",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/kissKh.js",
+      "icon": null
+    },
+    {
+      "id": "kmMovies",
+      "name": "Km Movies",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/kmMovies.js",
+      "icon": null
+    },
+    {
+      "id": "luxMovies",
+      "name": "Lux Movies",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/luxMovies.js",
+      "icon": null
+    },
+    {
+      "id": "mkvDrama",
+      "name": "Mkv Drama",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/mkvDrama.js",
+      "icon": null
+    },
+    {
+      "id": "mod",
+      "name": "Mod",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/mod.js",
+      "icon": null
+    },
+    {
+      "id": "movieBox",
+      "name": "Movie Box",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/movieBox.js",
+      "icon": null
+    },
+    {
+      "id": "movieBoxWeb",
+      "name": "Movie Box Web",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/movieBoxWeb.js",
+      "icon": null
+    },
+    {
+      "id": "movies4u",
+      "name": "Movies4u",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/movies4u.js",
+      "icon": null
+    },
+    {
+      "id": "moviesApi",
+      "name": "Movies Api",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/moviesApi.js",
+      "icon": null
+    },
+    {
+      "id": "moviezwap",
+      "name": "Moviezwap",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/moviezwap.js",
+      "icon": null
+    },
+    {
+      "id": "multi",
+      "name": "Multi",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/multi.js",
+      "icon": null
+    },
+    {
+      "id": "netflixMirror",
+      "name": "Netflix Mirror",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/netflixMirror.js",
+      "icon": null
+    },
+    {
+      "id": "ogomovies",
+      "name": "Ogomovies",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/ogomovies.js",
+      "icon": null
+    },
+    {
+      "id": "primeMirror",
+      "name": "Prime Mirror",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/primeMirror.js",
+      "icon": null
+    },
+    {
+      "id": "primewire",
+      "name": "Primewire",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/primewire.js",
+      "icon": null
+    },
+    {
+      "id": "protonMovies",
+      "name": "Proton Movies",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/protonMovies.js",
+      "icon": null
+    },
+    {
+      "id": "ridoMovies",
+      "name": "Rido Movies",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/ridoMovies.js",
+      "icon": null
+    },
+    {
+      "id": "ringz",
+      "name": "Ringz",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/ringz.js",
+      "icon": null
+    },
+    {
+      "id": "showbox",
+      "name": "Showbox",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/showbox.js",
+      "icon": null
+    },
+    {
+      "id": "skyMovieHD",
+      "name": "Sky Movie HD",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/skyMovieHD.js",
+      "icon": null
+    },
+    {
+      "id": "tokyoInsider",
+      "name": "Tokyo Insider",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/tokyoInsider.js",
+      "icon": null
+    },
+    {
+      "id": "topmovies",
+      "name": "Topmovies",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/topmovies.js",
+      "icon": null
+    },
+    {
+      "id": "torrentio",
+      "name": "Torrentio",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/torrentio.js",
+      "icon": null
+    },
+    {
+      "id": "uhd",
+      "name": "Uhd",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/uhd.js",
+      "icon": null
+    },
+    {
+      "id": "uniquestream",
+      "name": "Uniquestream",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/uniquestream.js",
+      "icon": null
+    },
+    {
+      "id": "vadapav",
+      "name": "Vadapav",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/vadapav.js",
+      "icon": null
+    },
+    {
+      "id": "vega",
+      "name": "Vega",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/vega.js",
+      "icon": null
+    },
+    {
+      "id": "world4u",
+      "name": "World4u",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/world4u.js",
+      "icon": null
+    },
+    {
+      "id": "zeefliz",
+      "name": "Zeefliz",
+      "version": "1.0.0",
+      "description": null,
+      "bundleUrl": "bundled/zeefliz.js",
+      "icon": null
+    }
+  ]
+}

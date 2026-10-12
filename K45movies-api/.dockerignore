@@ -1,0 +1,7 @@
+﻿node_modules
+.git
+tests
+bundled
+manifest.legacy.json
+node_modules_mock
+*.log
