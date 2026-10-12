@@ -33,6 +33,7 @@ pub fn router(state: AppState) -> Router {
         .route("/vega/details", get(vega_details))
         .route("/vega/stream", get(vega_stream))
         .route("/vega/episodes", get(vega_episodes))
+        .route("/vega/episodes", get(vega_episodes))
         .with_state(state)
 }
 #[derive(Deserialize)]
@@ -550,6 +551,25 @@ async fn vega_stream(
         "provider": params.provider,
         "link": params.link,
         "streams": streams,
+    })))
+}
+#[derive(Deserialize)]
+struct VegaEpisodesQuery {
+    provider: String,
+    url: String,
+}
+async fn vega_episodes(
+    Query(params): Query<VegaEpisodesQuery>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let client = vega_client();
+    let episodes = client
+        .episodes(&params.provider, &params.url)
+        .await
+        .map_err(internal)?;
+    Ok(Json(json!({
+        "provider": params.provider,
+        "url": params.url,
+        "episodes": episodes,
     })))
 }
 #[derive(Deserialize)]
