@@ -572,25 +572,6 @@ async fn vega_episodes(
         "episodes": episodes,
     })))
 }
-#[derive(Deserialize)]
-struct VegaEpisodesQuery {
-    provider: String,
-    url: String,
-}
-async fn vega_episodes(
-    Query(params): Query<VegaEpisodesQuery>,
-) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let client = vega_client();
-    let episodes = client
-        .episodes(&params.provider, &params.url)
-        .await
-        .map_err(internal)?;
-    Ok(Json(json!({
-        "provider": params.provider,
-        "url": params.url,
-        "episodes": episodes,
-    })))
-}
 fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
