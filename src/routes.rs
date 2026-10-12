@@ -33,7 +33,6 @@ pub fn router(state: AppState) -> Router {
         .route("/vega/details", get(vega_details))
         .route("/vega/stream", get(vega_stream))
         .route("/vega/episodes", get(vega_episodes))
-        .route("/vega/episodes", get(vega_episodes))
         .with_state(state)
 }
 #[derive(Deserialize)]
