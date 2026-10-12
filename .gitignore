@@ -1,3 +1,6 @@
 ﻿/target
 .env
 *.log
+K45movies-api/node_modules/
+K45movies-api/bundled/
+K45movies-api/tests/

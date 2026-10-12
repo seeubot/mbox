@@ -1,6 +1,7 @@
-﻿pub mod fourkhdhub;
+pub mod fourkhdhub;
 pub mod models;
 pub mod moviebox;
+pub mod vega;
 pub use models::{
     AudioTrackOption, CatalogItem, Episode, MediaDetails, MediaType, PlaybackSource, ProviderError,
     ProviderKind, ProviderMediaId, Release, ResolutionIntent, Season, SourceMirror, SubtitleOption,

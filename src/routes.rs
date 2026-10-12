@@ -1,4 +1,4 @@
-﻿use axum::body::Body;
+use axum::body::Body;
 use axum::response::Response;
 use axum::http::header;
 use tokio::process::Command;
@@ -26,6 +26,12 @@ pub fn router(state: AppState) -> Router {
         .route("/debug-raw", get(debug_raw))
         .route("/debug-env", get(debug_env))
         .route("/debug-bridge", get(debug_bridge))
+        .route("/vega/providers", get(vega_providers))
+        .route("/vega/catalog", get(vega_catalog))
+        .route("/vega/posts", get(vega_posts))
+        .route("/vega/search", get(vega_search))
+        .route("/vega/details", get(vega_details))
+        .route("/vega/stream", get(vega_stream))
         .with_state(state)
 }
 #[derive(Deserialize)]
@@ -440,6 +446,109 @@ async fn debug_bridge() -> Result<Json<Value>, (StatusCode, Json<Value>)> {
         "bridge_url": url,
         "status": status.as_u16(),
         "response": body,
+    })))
+}
+#[derive(Deserialize)]
+struct VegaProviderQuery {
+    provider: String,
+}
+#[derive(Deserialize)]
+struct VegaPostsQuery {
+    provider: String,
+    #[serde(default)]
+    filter: String,
+    #[serde(default)]
+    page: Option<u32>,
+}
+#[derive(Deserialize)]
+struct VegaSearchQuery {
+    provider: String,
+    q: String,
+    #[serde(default)]
+    page: Option<u32>,
+}
+#[derive(Deserialize)]
+struct VegaDetailsQuery {
+    provider: String,
+    link: String,
+}
+#[derive(Deserialize)]
+struct VegaStreamQuery {
+    provider: String,
+    link: String,
+    #[serde(default)]
+    r#type: Option<String>,
+}
+fn vega_client() -> crate::providers::vega::VegaBridgeClient {
+    crate::providers::vega::VegaBridgeClient::new()
+}
+async fn vega_providers() -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let client = vega_client();
+    let providers = client.list_providers().await.map_err(internal)?;
+    Ok(Json(json!({ "providers": providers })))
+}
+async fn vega_catalog(
+    Query(params): Query<VegaProviderQuery>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let client = vega_client();
+    let catalog = client.catalog(&params.provider).await.map_err(internal)?;
+    Ok(Json(json!({ "provider": params.provider, "catalog": catalog })))
+}
+async fn vega_posts(
+    Query(params): Query<VegaPostsQuery>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let client = vega_client();
+    let page = params.page.unwrap_or(1);
+    let posts = client
+        .posts(&params.provider, &params.filter, page)
+        .await
+        .map_err(internal)?;
+    Ok(Json(json!({
+        "provider": params.provider,
+        "filter": params.filter,
+        "page": page,
+        "posts": posts,
+    })))
+}
+async fn vega_search(
+    Query(params): Query<VegaSearchQuery>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let client = vega_client();
+    let page = params.page.unwrap_or(1);
+    let posts = client
+        .search(&params.provider, &params.q, page)
+        .await
+        .map_err(internal)?;
+    Ok(Json(json!({
+        "provider": params.provider,
+        "query": params.q,
+        "page": page,
+        "posts": posts,
+    })))
+}
+async fn vega_details(
+    Query(params): Query<VegaDetailsQuery>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let client = vega_client();
+    let info = client
+        .meta(&params.provider, &params.link)
+        .await
+        .map_err(internal)?;
+    Ok(Json(json!({ "provider": params.provider, "link": params.link, "info": info })))
+}
+async fn vega_stream(
+    Query(params): Query<VegaStreamQuery>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let client = vega_client();
+    let media_type = params.r#type.as_deref().unwrap_or("movie");
+    let streams = client
+        .stream(&params.provider, &params.link, media_type)
+        .await
+        .map_err(internal)?;
+    Ok(Json(json!({
+        "provider": params.provider,
+        "link": params.link,
+        "streams": streams,
     })))
 }
 fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
