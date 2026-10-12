@@ -108,19 +108,37 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
             }
         }
         if let Ok(details_json) = details_res {
-            for rel in adapt::moviebox_resource_detectors_to_releases(
-                &details_json,
-                season,
-                episode,
-            ) {
-                if let Some(url) = rel.direct_url() {
-                    let base = url.split('?').next().unwrap_or(url).to_string();
-                    if !base.is_empty() && seen_urls.contains(&base) {
-                        continue;
+            let detector_subject = details_json
+                .get("resourceDetectors")
+                .and_then(|r| r.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|d| d.get("subjectId"))
+                .and_then(|v| {
+                    v.as_str()
+                        .map(|s| s.to_string())
+                        .or_else(|| v.as_u64().map(|n| n.to_string()))
+                        .or_else(|| v.as_i64().map(|n| n.to_string()))
+                });
+            let detector_matches = match (audio_subject_id, detector_subject.as_deref()) {
+                (None, _) => true,
+                (Some(_), None) => true,
+                (Some(a), Some(d)) => a == d,
+            };
+            if detector_matches {
+                for rel in adapt::moviebox_resource_detectors_to_releases(
+                    &details_json,
+                    season,
+                    episode,
+                ) {
+                    if let Some(url) = rel.direct_url() {
+                        let base = url.split('?').next().unwrap_or(url).to_string();
+                        if !base.is_empty() && seen_urls.contains(&base) {
+                            continue;
+                        }
+                        seen_urls.insert(base);
                     }
-                    seen_urls.insert(base);
+                    releases.push(rel);
                 }
-                releases.push(rel);
             }
         }
         if releases.is_empty() {
