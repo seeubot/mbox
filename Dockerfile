@@ -1,4 +1,4 @@
-﻿# ============ STAGE 1: Build Rust backend ============
+# ============ STAGE 1: Build Rust backend ============
 FROM rust:1.88-slim AS rust-builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y \
