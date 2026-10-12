@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Content-Type: text/html
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: Content-Type, MEGA-Chrome-Antileak
+Access-Control-Max-Age: 86400
+Content-Length: 899
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+X-Frame-Options: DENY
+X-Robots-Tag: noindex
+Set-Cookie: geoip=IN
+Content-Security-Policy: default-src 'self' data: blob: *.transfer.it; connect-src 'self' *.transfer.it  *.mega.co.nz *.mega.co.nz:444 wss://*.userstorage.mega.co.nz;script-src 'self' blob: *.transfer.it;style-src 'self' 'unsafe-inline' blob: *.transfer.it
+Connection: Keep-Alive
+
