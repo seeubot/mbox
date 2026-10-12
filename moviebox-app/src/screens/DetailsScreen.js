@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -19,10 +19,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../api/client";
+import { api, buildDownloadUrl } from "../api/client";
 import { colors, spacing, radius } from "../theme/colors";
 import { useResponsive } from "../hooks/useResponsive";
 import { toggleFavorite, isFavorite, getProgress } from "../storage/library";
+import {
+  getDownloadByContent,
+  formatSize,
+} from "../storage/downloads";
+import {
+  ensureStoragePermission,
+  hasEnoughSpace,
+  openAppSettings,
+  formatBytes,
+} from "../storage/permissions";
+import { useDownloads } from "../hooks/useDownload";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
 export default function DetailsScreen({ route, navigation }) {
@@ -41,6 +52,10 @@ export default function DetailsScreen({ route, navigation }) {
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [isFav, setIsFav] = useState(false);
   const [resumeInfo, setResumeInfo] = useState(null);
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const [existingDownload, setExistingDownload] = useState(null);
+  const { downloads, start: startDownload, refresh: refreshDownloads } =
+    useDownloads();
   const isMountedRef = useRef(true);
   useEffect(() => {
     isMountedRef.current = true;
@@ -55,12 +70,15 @@ export default function DetailsScreen({ route, navigation }) {
       ? info.linkList
           .map((entry, idx) => {
             const first = (entry.directLinks || [])[0];
-            if (!first || !first.link) return null;
+            const hasEpisodes = !!entry.episodesLink;
+            const url = (first && first.link) || entry.episodesLink;
+            if (!url) return null;
             return {
               key: "vega-" + idx,
-              title: (entry.title || first.title || "Download").trim(),
+              title: (entry.title || (first && first.title) || "Download").trim(),
               quality: entry.quality || null,
-              url: first.link,
+              url,
+              isEpisodesLink: !first && hasEpisodes,
             };
           })
           .filter(Boolean)
@@ -70,9 +88,8 @@ export default function DetailsScreen({ route, navigation }) {
       provider,
       title: info.title || title || "Untitled",
       year: extractYear(info.title || title),
-      media_type: (info.type || "movie").toLowerCase() === "series"
-        ? "series"
-        : "movie",
+      media_type:
+        (info.type || "movie").toLowerCase() === "series" ? "series" : "movie",
       poster_url: info.image || null,
       backdrop_url: info.image || null,
       description: info.synopsis || null,
@@ -92,6 +109,7 @@ export default function DetailsScreen({ route, navigation }) {
     const data = await api.details(id);
     return {
       ...data,
+      provider: "moviebox",
       is_vega: false,
       link_list: [],
     };
@@ -147,6 +165,17 @@ export default function DetailsScreen({ route, navigation }) {
       if (isMountedRef.current) setResumeInfo(p);
     });
   }, [details, selectedSeason, isVega]);
+  useEffect(() => {
+    if (!details || !selectedTrack || isVega) return;
+    getDownloadByContent({
+      contentId: details.id,
+      season: 0,
+      episode: 0,
+      audioSubjectId: selectedTrack,
+    }).then((rec) => {
+      if (isMountedRef.current) setExistingDownload(rec);
+    });
+  }, [details, selectedTrack, isVega, downloads]);
   const handleFavorite = useCallback(async () => {
     if (!details) return;
     const next = await toggleFavorite({
@@ -159,6 +188,16 @@ export default function DetailsScreen({ route, navigation }) {
     });
     if (isMountedRef.current) setIsFav(next);
   }, [details]);
+  const tracks = details?.audio_tracks || [];
+  const seasons = details?.seasons || [];
+  const isSeries =
+    details?.media_type === "series" && seasons.length > 0 && !isVega;
+  const currentSeason = useMemo(
+    () =>
+      seasons.find((s) => s.number === selectedSeason) || seasons[0] || null,
+    [seasons, selectedSeason]
+  );
+  const episodes = currentSeason ? currentSeason.episodes || [] : [];
   const openExternal = useCallback(async (url) => {
     if (!url) return;
     try {
@@ -172,16 +211,6 @@ export default function DetailsScreen({ route, navigation }) {
       Alert.alert("Cannot open", err.message || "Failed to open link.");
     }
   }, []);
-  const tracks = details?.audio_tracks || [];
-  const seasons = details?.seasons || [];
-  const isSeries =
-    details?.media_type === "series" && seasons.length > 0 && !isVega;
-  const currentSeason = useMemo(
-    () =>
-      seasons.find((s) => s.number === selectedSeason) || seasons[0] || null,
-    [seasons, selectedSeason]
-  );
-  const episodes = currentSeason ? currentSeason.episodes || [] : [];
   const playMovie = useCallback(() => {
     if (!details) return;
     navigation.navigate("Player", {
@@ -201,7 +230,11 @@ export default function DetailsScreen({ route, navigation }) {
       navigation.navigate("Player", {
         id: details.id,
         title:
-          details.title + " S" + currentSeason.number + "E" + episode.number,
+          details.title +
+          " S" +
+          currentSeason.number +
+          "E" +
+          episode.number,
         poster: details.poster_url || null,
         audioTrack: selectedTrack,
         audioTracks: tracks,
@@ -212,10 +245,267 @@ export default function DetailsScreen({ route, navigation }) {
     },
     [details, currentSeason, navigation, selectedTrack, tracks]
   );
+  const playVegaOption = useCallback(
+    async (opt) => {
+      if (!details) return;
+      if (isMountedRef.current) setDownloadBusy(true);
+      try {
+        let streamLink = opt.url;
+        if (opt.isEpisodesLink) {
+          const eps = await api.vegaEpisodes(details.provider, opt.url);
+          const list = (eps && eps.episodes) || [];
+          if (list.length > 0 && list[0].link) {
+            streamLink = list[0].link;
+          }
+        }
+        const data = await api.vegaStream(
+          details.provider,
+          streamLink,
+          details.media_type
+        );
+        const streams = (data && data.streams) || [];
+        const first = streams.find(
+          (s) =>
+            s &&
+            s.link &&
+            (s.link.includes(".m3u8") ||
+              s.link.includes(".mp4") ||
+              s.link.includes(".mpd"))
+        );
+        if (first) {
+          navigation.navigate("Player", {
+            id: null,
+            title: details.title,
+            poster: details.poster_url || null,
+            audioTrack: null,
+            audioTracks: [],
+            season: 0,
+            episode: 0,
+            resume: 0,
+            streamUrl: first.link,
+            streamHeaders: first.headers || null,
+            externalStream: true,
+          });
+          return;
+        }
+      } catch (_) {
+      } finally {
+        if (isMountedRef.current) setDownloadBusy(false);
+      }
+      Alert.alert(
+        "External playback",
+        "This stream cannot be played in-app. Open the source page in your browser?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open", onPress: () => openExternal(opt.url) },
+        ]
+      );
+    },
+    [details, navigation, openExternal]
+  );
+  const runDownloadFlow = useCallback(
+    async ({ season, episode, episodeTitle }) => {
+      if (!details || isVega) return;
+      if (downloadBusy) return;
+      setDownloadBusy(true);
+      try {
+        const existing = await getDownloadByContent({
+          contentId: details.id,
+          season,
+          episode,
+          audioSubjectId: selectedTrack,
+        });
+        if (existing && existing.status === "completed") {
+          Alert.alert(
+            "Already downloaded",
+            "This title is already available offline.",
+            [
+              { text: "OK" },
+              {
+                text: "Open Downloads",
+                onPress: () => navigation.navigate("Downloads"),
+              },
+            ]
+          );
+          return;
+        }
+        const perm = await ensureStoragePermission();
+        if (!perm.granted) {
+          Alert.alert(
+            "Storage permission required",
+            "MayaBox needs storage permission to save downloads on your device.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Open settings", onPress: () => openAppSettings() },
+            ]
+          );
+          return;
+        }
+        let sizeBytes = null;
+        let quality = null;
+        try {
+          const data = await api.streams(
+            details.id,
+            season,
+            episode,
+            selectedTrack,
+            null
+          );
+          const streams = (data.streams || []).filter((s) => s.url);
+          if (streams.length > 0) {
+            const sorted = [...streams].sort(
+              (a, b) => (b.size_bytes || 0) - (a.size_bytes || 0)
+            );
+            sizeBytes = sorted[0].size_bytes || null;
+            quality = sorted[0].quality || null;
+          }
+        } catch (_) {}
+        if (sizeBytes) {
+          const space = await hasEnoughSpace(sizeBytes);
+          if (!space.ok) {
+            Alert.alert(
+              "Not enough storage",
+              "This download needs about " +
+                formatBytes(space.needed) +
+                " but only " +
+                formatBytes(space.free) +
+                " is free.\n\nFree up some space and try again.",
+              [{ text: "OK" }]
+            );
+            return;
+          }
+        }
+        const audioLabel =
+          (tracks.find((t) => t.subject_id === selectedTrack) || {})
+            .language || "Default";
+        const sizeText = sizeBytes ? formatBytes(sizeBytes) : "Unknown size";
+        const header = episodeTitle || details.title;
+        const confirmed = await new Promise((resolve) => {
+          Alert.alert(
+            "Start download?",
+            header +
+              "\n\n" +
+              (quality || "Auto") +
+              "  ·  " +
+              sizeText +
+              "  ·  " +
+              audioLabel,
+            [
+              {
+                text: "Cancel",
+                style: "cancel",
+                onPress: () => resolve(false),
+              },
+              { text: "Download", onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) }
+          );
+        });
+        if (!confirmed) return;
+        let info = null;
+        try {
+          info = await api.downloadInfo(
+            details.id,
+            season,
+            episode,
+            selectedTrack,
+            header,
+            null
+          );
+        } catch (_) {
+          info = null;
+        }
+        let sourceUrl;
+        let downloadHeaders = {};
+        if (
+          info &&
+          info.type === "direct" &&
+          info.url &&
+          info.url.includes(".mp4")
+        ) {
+          sourceUrl = info.url;
+          downloadHeaders = info.headers || {};
+        } else {
+          sourceUrl = buildDownloadUrl({
+            id: details.id,
+            season,
+            episode,
+            audio: selectedTrack,
+            title:
+              details.title +
+              (episode > 0 ? " S" + season + "E" + episode : ""),
+            maxHeight: null,
+          });
+          downloadHeaders = {};
+        }
+        if (info && info.size_bytes && !sizeBytes) {
+          sizeBytes = info.size_bytes;
+        }
+        navigation.navigate("Downloads");
+        startDownload({
+          contentId: details.id,
+          provider: "moviebox",
+          title: header,
+          poster: details.poster_url || null,
+          year: details.year || null,
+          media_type: isSeries ? "series" : "movie",
+          season,
+          episode,
+          audioSubjectId: selectedTrack,
+          audioLabel,
+          quality,
+          sizeBytes,
+          sourceUrl,
+          headers: downloadHeaders,
+        }).then((res) => {
+          if (res && res.ok) {
+            refreshDownloads();
+          }
+        });
+      } catch (err) {
+        Alert.alert("Download failed", err.message || "Something went wrong.");
+      } finally {
+        if (isMountedRef.current) setDownloadBusy(false);
+      }
+    },
+    [
+      details,
+      isVega,
+      downloadBusy,
+      selectedTrack,
+      tracks,
+      isSeries,
+      navigation,
+      startDownload,
+      refreshDownloads,
+    ]
+  );
+  const handleDownloadMovie = useCallback(() => {
+    runDownloadFlow({ season: 0, episode: 0, episodeTitle: null });
+  }, [runDownloadFlow]);
+  const handleDownloadEpisode = useCallback(
+    (ep) => {
+      if (!currentSeason) return;
+      const label =
+        details.title +
+        " S" +
+        currentSeason.number +
+        "E" +
+        ep.number +
+        (ep.title ? " · " + ep.title : "");
+      runDownloadFlow({
+        season: currentSeason.number,
+        episode: ep.number,
+        episodeTitle: label,
+      });
+    },
+    [runDownloadFlow, currentSeason, details]
+  );
   if (loading) return <LoadingState message="Loading details" />;
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!details) return null;
-  const hasResume = !isSeries && !isVega && resumeInfo && resumeInfo.position > 0;
+  const hasResume =
+    !isSeries && !isVega && resumeInfo && resumeInfo.position > 0;
   const resumePercent =
     hasResume && resumeInfo.duration
       ? Math.min(
@@ -223,6 +513,11 @@ export default function DetailsScreen({ route, navigation }) {
           Math.round((resumeInfo.position / resumeInfo.duration) * 100)
         )
       : 0;
+  const downloadDone =
+    !isVega && existingDownload && existingDownload.status === "completed";
+  const downloadActive =
+    !isVega && existingDownload && existingDownload.status === "downloading";
+  const downloadProgress = existingDownload ? existingDownload.progress : 0;
   const backdropUri = details.backdrop_url || details.poster_url;
   const posterUri = details.poster_url || details.backdrop_url;
   return (
@@ -237,7 +532,7 @@ export default function DetailsScreen({ route, navigation }) {
               source={{ uri: backdropUri }}
               style={styles.heroBackdrop}
               contentFit="cover"
-              blurRadius={isVega ? 10 : 30}
+              blurRadius={isVega ? 8 : 30}
               cachePolicy="memory-disk"
             />
           ) : (
@@ -315,7 +610,7 @@ export default function DetailsScreen({ route, navigation }) {
                     <View style={styles.dot} />
                     <View style={styles.sourceChip}>
                       <Text style={styles.sourceLabel}>
-                        {details.provider}
+                        {String(details.provider).toUpperCase()}
                       </Text>
                     </View>
                   </>
@@ -323,7 +618,7 @@ export default function DetailsScreen({ route, navigation }) {
               </View>
               {details.genres && details.genres.length > 0 ? (
                 <View style={styles.genreRow}>
-                  {details.genres.slice(0, 4).map((g, i) => (
+                  {details.genres.slice(0, 5).map((g, i) => (
                     <View key={g + i} style={styles.genreChip}>
                       <Text style={styles.genreText}>{g}</Text>
                     </View>
@@ -354,9 +649,54 @@ export default function DetailsScreen({ route, navigation }) {
                       pressed && styles.btnPressed,
                     ]}
                   >
-                    <Ionicons name="play" size={18} color={colors.background} />
+                    <Ionicons
+                      name="play"
+                      size={18}
+                      color={colors.background}
+                    />
                     <Text style={styles.primaryBtnText}>
                       {hasResume ? "Resume" : "Play"}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                {!isVega && !isSeries ? (
+                  <Pressable
+                    onPress={handleDownloadMovie}
+                    disabled={downloadBusy || downloadActive}
+                    style={({ pressed }) => [
+                      styles.secondaryBtn,
+                      downloadDone && styles.secondaryBtnDone,
+                      pressed && styles.btnPressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        downloadDone
+                          ? "checkmark-circle"
+                          : downloadActive
+                          ? "cloud-download"
+                          : "download-outline"
+                      }
+                      size={18}
+                      color={
+                        downloadDone
+                          ? colors.accent
+                          : downloadActive
+                          ? colors.accent
+                          : colors.foreground
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.secondaryBtnText,
+                        downloadDone && styles.secondaryBtnTextActive,
+                      ]}
+                    >
+                      {downloadDone
+                        ? "Downloaded"
+                        : downloadActive
+                        ? downloadProgress + "%"
+                        : "Download"}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -429,13 +769,13 @@ export default function DetailsScreen({ route, navigation }) {
                         pressed && styles.pillPressed,
                       ]}
                     >
-                      {active && (
+                      {active ? (
                         <Ionicons
                           name="checkmark"
                           size={14}
                           color={colors.background}
                         />
-                      )}
+                      ) : null}
                       <Text
                         style={[
                           styles.pillText,
@@ -457,7 +797,8 @@ export default function DetailsScreen({ route, navigation }) {
                 {details.link_list.map((opt) => (
                   <Pressable
                     key={opt.key}
-                    onPress={() => openExternal(opt.url)}
+                    onPress={() => playVegaOption(opt)}
+                    disabled={downloadBusy}
                     style={({ pressed }) => [
                       styles.downloadRow,
                       pressed && styles.downloadRowPressed,
@@ -465,15 +806,15 @@ export default function DetailsScreen({ route, navigation }) {
                   >
                     <View style={styles.downloadIcon}>
                       <Ionicons
-                        name="download-outline"
-                        size={20}
+                        name="play-circle-outline"
+                        size={22}
                         color={colors.accent}
                       />
                     </View>
                     <View style={styles.downloadBody}>
                       <Text
                         style={styles.downloadTitle}
-                        numberOfLines={2}
+                        numberOfLines={3}
                       >
                         {opt.title}
                       </Text>
@@ -484,7 +825,7 @@ export default function DetailsScreen({ route, navigation }) {
                       ) : null}
                     </View>
                     <Ionicons
-                      name="open-outline"
+                      name="chevron-forward"
                       size={18}
                       color={colors.foregroundMuted}
                     />
@@ -529,38 +870,56 @@ export default function DetailsScreen({ route, navigation }) {
                 </Text>
                 <View style={styles.episodeList}>
                   {episodes.map((ep) => (
-                    <Pressable
-                      key={ep.number}
-                      onPress={() => playEpisode(ep)}
-                      style={({ pressed }) => [
-                        styles.episodeRow,
-                        pressed && styles.episodeRowPressed,
-                      ]}
-                    >
-                      <View style={styles.episodeNumBadge}>
-                        <Text style={styles.episodeNumText}>{ep.number}</Text>
-                      </View>
-                      <View style={styles.episodeBody}>
-                        <Text style={styles.episodeTitle} numberOfLines={1}>
-                          {ep.title || "Episode " + ep.number}
-                        </Text>
-                        {ep.overview ? (
-                          <Text
-                            style={styles.episodeOverview}
-                            numberOfLines={2}
-                          >
-                            {ep.overview}
+                    <View key={ep.number} style={styles.episodeRow}>
+                      <Pressable
+                        onPress={() => playEpisode(ep)}
+                        style={styles.episodeMain}
+                      >
+                        <View style={styles.episodeNumBadge}>
+                          <Text style={styles.episodeNumText}>
+                            {ep.number}
                           </Text>
-                        ) : null}
-                      </View>
-                      <View style={styles.episodePlayIcon}>
+                        </View>
+                        <View style={styles.episodeBody}>
+                          <Text
+                            style={styles.episodeTitle}
+                            numberOfLines={1}
+                          >
+                            {ep.title || "Episode " + ep.number}
+                          </Text>
+                          {ep.overview ? (
+                            <Text
+                              style={styles.episodeOverview}
+                              numberOfLines={2}
+                            >
+                              {ep.overview}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <View style={styles.episodePlayIcon}>
+                          <Ionicons
+                            name="play"
+                            size={16}
+                            color={colors.foreground}
+                          />
+                        </View>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleDownloadEpisode(ep)}
+                        disabled={downloadBusy}
+                        style={({ pressed }) => [
+                          styles.episodeDownloadBtn,
+                          pressed && styles.btnPressed,
+                        ]}
+                        hitSlop={8}
+                      >
                         <Ionicons
-                          name="play"
-                          size={16}
+                          name="download-outline"
+                          size={18}
                           color={colors.foreground}
                         />
-                      </View>
-                    </Pressable>
+                      </Pressable>
+                    </View>
                   ))}
                 </View>
               </View>
@@ -753,13 +1112,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: radius.md,
-    minWidth: 140,
+    minWidth: 130,
+  },
+  secondaryBtnDone: {
+    backgroundColor: "rgba(0,168,225,0.12)",
+    borderColor: "rgba(0,168,225,0.35)",
   },
   secondaryBtnText: {
     color: colors.foreground,
     fontWeight: "700",
     fontSize: 13,
   },
+  secondaryBtnTextActive: { color: colors.accent },
   iconBtn: {
     width: 44,
     height: 44,
@@ -857,9 +1221,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.06)",
   },
   downloadIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,168,225,0.1)",
@@ -882,16 +1246,20 @@ const styles = StyleSheet.create({
   episodeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
     borderRadius: radius.md,
     backgroundColor: "rgba(255,255,255,0.03)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
+    paddingRight: spacing.sm,
   },
-  episodeRowPressed: {
-    backgroundColor: "rgba(255,255,255,0.06)",
+  episodeMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   episodeNumBadge: {
     width: 36,
@@ -926,5 +1294,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  episodeDownloadBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
 });

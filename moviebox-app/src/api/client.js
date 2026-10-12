@@ -1,7 +1,6 @@
-﻿const API_URL =
+const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   "https://sour-cheetah-seeutech-508ef070.koyeb.app";
-
 async function get(path) {
   const url = API_URL + path;
   const startedAt = Date.now();
@@ -32,7 +31,6 @@ async function get(path) {
     throw err;
   }
 }
-
 export const api = {
   search: (query, page = 1) =>
     get("/api/search?q=" + encodeURIComponent(query) + "&page=" + page),
@@ -53,8 +51,14 @@ export const api = {
     }
     return get(path);
   },
-  providers: () => get("/api/providers"),
-  downloadInfo: (id, season = 0, episode = 0, audio = null, title = null, maxHeight = null) => {
+  downloadInfo: (
+    id,
+    season = 0,
+    episode = 0,
+    audio = null,
+    title = null,
+    maxHeight = null
+  ) => {
     let path =
       "/api/download-info?id=" +
       encodeURIComponent(id) +
@@ -72,8 +76,53 @@ export const api = {
       path += "&max_height=" + encodeURIComponent(maxHeight);
     }
     return get(path);
-  },};
-
+  },
+  providers: () => get("/api/providers"),
+  vegaProviders: () => get("/api/vega/providers"),
+  vegaCatalog: (provider) =>
+    get("/api/vega/catalog?provider=" + encodeURIComponent(provider)),
+  vegaPosts: (provider, filter = "", page = 1) =>
+    get(
+      "/api/vega/posts?provider=" +
+        encodeURIComponent(provider) +
+        "&filter=" +
+        encodeURIComponent(filter) +
+        "&page=" +
+        page
+    ),
+  vegaSearch: (provider, query, page = 1) =>
+    get(
+      "/api/vega/search?provider=" +
+        encodeURIComponent(provider) +
+        "&q=" +
+        encodeURIComponent(query) +
+        "&page=" +
+        page
+    ),
+  vegaDetails: (provider, link) =>
+    get(
+      "/api/vega/details?provider=" +
+        encodeURIComponent(provider) +
+        "&link=" +
+        encodeURIComponent(link)
+    ),
+  vegaEpisodes: (provider, url) =>
+    get(
+      "/api/vega/episodes?provider=" +
+        encodeURIComponent(provider) +
+        "&url=" +
+        encodeURIComponent(url)
+    ),
+  vegaStream: (provider, link, type = "movie") =>
+    get(
+      "/api/vega/stream?provider=" +
+        encodeURIComponent(provider) +
+        "&link=" +
+        encodeURIComponent(link) +
+        "&type=" +
+        encodeURIComponent(type)
+    ),
+};
 export function buildDownloadUrl({
   id,
   season = 0,
