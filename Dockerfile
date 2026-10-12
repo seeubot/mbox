@@ -15,9 +15,9 @@ RUN touch src/main.rs && cargo build --release
 FROM node:20-bookworm-slim AS node-builder
 WORKDIR /bridge
 COPY K45movies-api/package.json K45movies-api/package-lock.json* ./
-RUN npm install --omit=dev --no-audit --no-fund
+RUN npm install --no-audit --no-fund
 COPY K45movies-api/ ./
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 # ============ STAGE 3: Runtime ============
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
