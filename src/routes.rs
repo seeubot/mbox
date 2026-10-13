@@ -33,6 +33,7 @@ pub fn router(state: AppState) -> Router {
         .route("/vega/details", get(vega_details))
         .route("/vega/stream", get(vega_stream))
         .route("/vega/episodes", get(vega_episodes))
+        .route("/proxy-stream", get(proxy_stream))
         .with_state(state)
 }
 #[derive(Deserialize)]
@@ -240,11 +241,21 @@ async fn download(
             )
         })?
         .to_string();
-    let headers = target
-        .mirrors
-        .first()
-        .map(|m| m.headers.clone())
-        .unwrap_or_default();
+    let mut headers = vec![
+        ("Referer".to_string(), "https://sportslive.wine".to_string()),
+        (
+            "User-Agent".to_string(),
+            "com.community.oneroom/50020121 (Linux; U; Android 13; en_US; 2201117TY; Build/TQ2A.230405.003; Cronet/135.0.7012.3)"
+                .to_string(),
+        ),
+    ];
+    if let Some(m) = target.mirrors.first() {
+        for (k, v) in &m.headers {
+            if !headers.iter().any(|(hk, _)| hk.eq_ignore_ascii_case(k)) {
+                headers.push((k.clone(), v.clone()));
+            }
+        }
+    }
     let safe_title = title
         .chars()
         .map(|c| {
@@ -270,6 +281,8 @@ async fn download(
     cmd.arg("--no-warnings");
     cmd.arg("--no-part");
     cmd.arg("--merge-output-format").arg("mp4");
+    cmd.arg("--socket-timeout").arg("30");
+    cmd.arg("--retries").arg("3");
     cmd.arg("-o").arg(&tmp_path);
     for (name, value) in &headers {
         cmd.arg("--add-header").arg(format!("{}:{}", name, value));
@@ -290,7 +303,7 @@ async fn download(
             .lines()
             .filter(|l| !l.trim().is_empty())
             .rev()
-            .take(15)
+            .take(20)
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
@@ -321,7 +334,7 @@ async fn download(
             StatusCode::BAD_GATEWAY,
             Json(json!({
                 "error": "yt-dlp produced an empty file",
-                "stderr": stderr.lines().take(15).collect::<Vec<_>>().join("\n"),
+                "stderr": stderr.lines().take(20).collect::<Vec<_>>().join("\n"),
             })),
         ));
     }
@@ -337,7 +350,7 @@ async fn download(
     let filename = format!("{}.mp4", safe_title);
     let cleanup_path = tmp_path.clone();
     tokio::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_secs(120)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(180)).await;
         let _ = tokio::fs::remove_file(&cleanup_path).await;
     });
     let response = Response::builder()
@@ -570,6 +583,63 @@ async fn vega_episodes(
         "url": params.url,
         "episodes": episodes,
     })))
+}
+#[derive(Deserialize)]
+struct ProxyQuery {
+    url: String,
+    #[serde(default)]
+    cookie: Option<String>,
+    #[serde(default)]
+    referer: Option<String>,
+}
+async fn proxy_stream(
+    Query(params): Query<ProxyQuery>,
+) -> Result<Response, (StatusCode, Json<Value>)> {
+    let mut req = reqwest::Client::new().get(&params.url);
+    req = req.header(
+        "User-Agent",
+        "com.community.oneroom/50020121 (Linux; U; Android 13; en_US; 2201117TY; Build/TQ2A.230405.003; Cronet/135.0.7012.3)",
+    );
+    if let Some(referer) = &params.referer {
+        req = req.header("Referer", referer);
+    } else {
+        req = req.header("Referer", "https://sportslive.wine");
+    }
+    if let Some(cookie) = &params.cookie {
+        req = req.header("Cookie", cookie);
+    }
+    let resp = req.send().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({"error": format!("upstream: {}", e)})),
+        )
+    })?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+    let body = resp.bytes().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({"error": format!("body: {}", e)})),
+        )
+    })?;
+    Response::builder()
+        .status(status)
+        .header("content-type", content_type)
+        .header("access-control-allow-origin", "*")
+        .header("access-control-allow-headers", "*")
+        .header("access-control-allow-methods", "GET, HEAD, OPTIONS")
+        .body(Body::from(body))
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
+        })
 }
 fn internal(err: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
     (
