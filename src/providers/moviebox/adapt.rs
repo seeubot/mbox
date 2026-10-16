@@ -884,6 +884,116 @@ pub fn moviebox_resource_detectors_to_releases(
     }
     releases
 }
+pub fn moviebox_web_play_info_to_releases(
+    payload: &serde_json::Value,
+    season: usize,
+    episode: usize,
+    user_agent: &str,
+    domain: &str,
+) -> Vec<Release> {
+    let data = payload.get("data").unwrap_or(payload);
+    let raw_title = data
+        .get("title")
+        .and_then(|t| t.as_str())
+        .unwrap_or("MovieBox Stream");
+    let title_prefix = crate::providers::moviebox::title::clean_moviebox_title(raw_title);
+    let referer = format!("{}/", domain);
+    let mut releases = Vec::new();
+    if let Some(streams) = data.get("streams").and_then(|s| s.as_array()) {
+        for stream in streams {
+            let url = match stream.get("url").and_then(|u| u.as_str()) {
+                Some(u) if u.starts_with("http") && !is_deprecation_notice_url(u) => u.to_string(),
+                _ => continue,
+            };
+            let codec = stream
+                .get("codecName")
+                .or_else(|| stream.get("codec"))
+                .and_then(|c| c.as_str())
+                .map(|s| s.to_string());
+            let size_bytes = stream.get("size").and_then(|v| {
+                v.as_u64()
+                    .or_else(|| v.as_i64().map(|n| n as u64))
+                    .or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))
+            });
+            let quality = stream
+                .get("resolutions")
+                .and_then(|r| r.as_str())
+                .and_then(|r| r.split(',').next())
+                .map(|q| format!("{}p", q.trim()));
+            let filename = if season > 0 && episode > 0 {
+                format!(
+                    "{title_prefix} S{season:02}E{episode:02} {} {}",
+                    quality.as_deref().unwrap_or(""),
+                    codec.as_deref().unwrap_or("mp4")
+                )
+            } else {
+                format!(
+                    "{title_prefix} {} {}",
+                    quality.as_deref().unwrap_or(""),
+                    codec.as_deref().unwrap_or("mp4")
+                )
+            };
+            releases.push(Release {
+                provider: crate::providers::models::ProviderKind::MovieBox,
+                filename,
+                quality,
+                codec,
+                language: None,
+                size_bytes,
+                season: if season > 0 { Some(season) } else { None },
+                episode: if episode > 0 { Some(episode) } else { None },
+                mirrors: vec![crate::providers::models::SourceMirror {
+                    label: "Web".to_string(),
+                    resolver_url: url,
+                    headers: vec![
+                        ("Referer".to_string(), referer.clone()),
+                        ("User-Agent".to_string(), user_agent.to_string()),
+                    ],
+                    direct_file: true,
+                }],
+                resource_id: None,
+            });
+        }
+    }
+    if let Some(dash) = data.get("dash").and_then(|d| d.as_array()) {
+        for item in dash {
+            let sign_cookie = item.get("signCookie").and_then(|c| c.as_str()).unwrap_or("");
+            let manifest = match resolve_dash_manifest_from_policy(sign_cookie) {
+                Some(m) => m,
+                None => continue,
+            };
+            let codec = item
+                .get("codecName")
+                .and_then(|c| c.as_str())
+                .map(|s| s.to_string());
+            let mut headers = vec![
+                ("Referer".to_string(), referer.clone()),
+                ("User-Agent".to_string(), user_agent.to_string()),
+            ];
+            if !sign_cookie.is_empty() {
+                headers.push(("Cookie".to_string(), sign_cookie.to_string()));
+            }
+            releases.push(Release {
+                provider: crate::providers::models::ProviderKind::MovieBox,
+                filename: format!("{title_prefix} DASH"),
+                quality: Some("adaptive".to_string()),
+                codec,
+                language: None,
+                size_bytes: None,
+                season: if season > 0 { Some(season) } else { None },
+                episode: if episode > 0 { Some(episode) } else { None },
+                mirrors: vec![crate::providers::models::SourceMirror {
+                    label: "DASH".to_string(),
+                    resolver_url: manifest,
+                    headers,
+                    direct_file: false,
+                }],
+                resource_id: None,
+            });
+        }
+    }
+    releases
+}
 #[cfg(test)]
 mod tests {
     use super::*;

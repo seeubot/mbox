@@ -107,7 +107,7 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
                 }
             }
         }
-        if let Ok(details_json) = details_res {
+        if let Ok(ref details_json) = details_res {
             let detector_subject = details_json
                 .get("resourceDetectors")
                 .and_then(|r| r.as_array())
@@ -138,6 +138,55 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
                         seen_urls.insert(base);
                     }
                     releases.push(rel);
+                }
+            }
+        }
+        // Web fallback: if native paths returned nothing, try web domains
+        if releases.is_empty() {
+            let detail_path = if let Ok(ref details_json) = details_res {
+                details_json
+                    .get("detailUrl")
+                    .and_then(|u| u.as_str())
+                    .and_then(|u| u.split('/').next_back())
+                    .map(|s| s.to_string())
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            };
+            if !detail_path.is_empty() {
+                const WEB_DOMAINS: &[&str] = &[
+                    "https://123moviesfree.club",
+                    "https://movie-box.co",
+                    "https://movieboxonline.net",
+                    "https://sflix.film",
+                    "https://netnaija.film",
+                    "https://movieboxhd.net",
+                ];
+                for domain in WEB_DOMAINS {
+                    if let Ok(web_json) = self
+                        .get_web_play_info(domain, play_subject, season, episode, &detail_path)
+                        .await
+                    {
+                        let mut web_rels = adapt::moviebox_web_play_info_to_releases(
+                            &web_json,
+                            season,
+                            episode,
+                            self.user_agent(),
+                            domain,
+                        );
+                        if !web_rels.is_empty() {
+                            for rel in &web_rels {
+                                if let Some(url) = rel.direct_url() {
+                                    let base = url.split('?').next().unwrap_or(url).to_string();
+                                    if !base.is_empty() {
+                                        seen_urls.insert(base);
+                                    }
+                                }
+                            }
+                            releases.append(&mut web_rels);
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -186,6 +235,54 @@ impl MovieBoxClient {
         };
         self.get(&path).await
     }
+    pub async fn get_web_play_info(
+        &self,
+        domain: &str,
+        subject_id: &str,
+        season: usize,
+        episode: usize,
+        detail_path: &str,
+    ) -> Result<Value, ScraperError> {
+        let token = self.ensure_session().await?;
+        let url = format!(
+            "{}/wefeed-h5api-bff/subject/play?subjectId={}&se={}&ep={}&detailPath={}&streamSignType=1&supportCodecs%5Bhevc%5D=1&supportCodecs%5Bh264%5D=1",
+            domain, subject_id, season, episode, detail_path
+        );
+        let referer = format!(
+            "{}/movies/{}?id={}&type=/movie/detail&detailSe=&detailEp=&lang=en",
+            domain, detail_path, subject_id
+        );
+        let resp = self
+            .http_client()
+            .get(&url)
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36",
+            )
+            .header("Referer", referer)
+            .header("Accept", "application/json")
+            .header("x-client-info", "{\"timezone\":\"Asia/Calcutta\"}")
+            .header("x-request-lang", "en")
+            .header("x-vip-restrict", "0")
+            .header("x-no-high-risk-restrict", "0")
+            .header("x-source", "moviebox")
+            .header("Authorization", format!("Bearer {}", token))
+            .timeout(std::time::Duration::from_secs(12))
+            .send()
+            .await?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(ScraperError::ApiStatus(status.as_u16()));
+        }
+        let text = resp.text().await?;
+        let val: Value = serde_json::from_str(&text)?;
+        if let Some(data) = val.get("data") {
+            Ok(data.clone())
+        } else {
+            Ok(val)
+        }
+    }
+
     pub async fn search(&self, query: &str, page: usize) -> Result<Value, ScraperError> {
         let payload = json!({
             "keyword": query,
@@ -380,3 +477,4 @@ mod tests {
         );
     }
 }
+

@@ -51,21 +51,21 @@ async function getProviderModule(providerName, moduleName) {
   const fs = require("fs");
   const distPath = path.join(__dirname, "dist");
   if (!fs.existsSync(distPath)) {
-    console.error(`❌ dist/ folder missing at ${distPath}`);
+    console.error(`âŒ dist/ folder missing at ${distPath}`);
     return null;
   }
   const entries = fs.readdirSync(distPath);
   const lower = String(providerName).toLowerCase();
   const match = entries.find((e) => e.toLowerCase() === lower);
   if (!match) {
-    console.error(`❌ No provider directory matches "${providerName}"`);
+    console.error(`âŒ No provider directory matches "${providerName}"`);
     return null;
   }
   try {
     const modulePath = path.join(__dirname, "dist", match, `${moduleName}.js`);
     return require(modulePath);
   } catch (e) {
-    console.error(`❌ Failed to load ${match}/${moduleName}: ${e.message}`);
+    console.error(`âŒ Failed to load ${match}/${moduleName}: ${e.message}`);
     return null;
   }
 }
@@ -86,7 +86,7 @@ app.get("/api/providers", async (req, res) => {
 
     res.json(providers);
   } catch (error) {
-    console.error("âŒ Failed to read manifest.json:", error.message);
+    console.error("Ã¢ÂÅ’ Failed to read manifest.json:", error.message);
     res.status(500).json({ error: "Failed to load providers manifest" });
   }
 });
@@ -241,7 +241,7 @@ app.get("/api/search", async (req, res) => {
     let targetProviders = [];
 
     if (providers) {
-      // ðŸ‘‡ Search ONLY the comma-separated list of installed providers
+      // Ã°Å¸â€˜â€¡ Search ONLY the comma-separated list of installed providers
       targetProviders = providers.split(",");
     } else if (provider) {
       targetProviders = [provider];
@@ -270,9 +270,9 @@ app.get("/api/search", async (req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`\nðŸŒ‰ =========================================`);
-  console.log(`ðŸš€ Vega Provider Bridge API is running!`);
-  console.log(`ðŸ’» Local: http://localhost:${PORT}`);
-  console.log(`ðŸ“± Mobile: http://<YOUR-COMPUTER-IP>:${PORT}`);
-  console.log(`ðŸŒ‰ =========================================\n`);
+  console.log(`\nÃ°Å¸Å’â€° =========================================`);
+  console.log(`Ã°Å¸Å¡â‚¬ Vega Provider Bridge API is running!`);
+  console.log(`Ã°Å¸â€™Â» Local: http://localhost:${PORT}`);
+  console.log(`Ã°Å¸â€œÂ± Mobile: http://<YOUR-COMPUTER-IP>:${PORT}`);
+  console.log(`Ã°Å¸Å’â€° =========================================\n`);
 });
