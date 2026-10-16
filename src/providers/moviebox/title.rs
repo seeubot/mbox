@@ -167,7 +167,7 @@ pub fn language_to_code(name: &str) -> Option<&'static str> {
         "hebrew" | "he" | "heb" | "עברית" => Some("he"),
         "czech" | "cs" | "cze" | "ces" | "čeština" => Some("cs"),
         "hungarian" | "hu" | "hun" | "magyar" => Some("hu"),
-        "romanian" | "ro" | "rum" | "ron" | "română" => Some("ro"),
+        "romanian" | "ro" | "rum" | "ron" | "\u{0072}\u{006f}\u{006d}\u{00e2}\u{006e}\u{0103}" => Some("ro"),
         "ukrainian" | "uk" | "ukr" | "українська" => Some("uk"),
         "persian" | "fa" | "fas" | "per" | "فارسی" => Some("fa"),
         "tagalog" | "tl" | "fil" | "filipino" => Some("tl"),

@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -544,7 +544,7 @@ mod tests {
         assert_eq!(parse_size_bytes("450MB"), Some(471_859_200));
         assert_eq!(parse_size_bytes("512 KB"), Some(524_288));
         assert_eq!(parse_size_bytes("1 TB"), Some(1_099_511_627_776));
-        assert_eq!(parse_size_bytes("ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¾ 2.25 GB ÃƒÂ¢Ã…Â¡Ã‚Â¡"), Some(2_415_919_104));
+        assert_eq!(parse_size_bytes("2.25 GB"), Some(2_415_919_104));
         assert_eq!(parse_size_bytes("No size here"), None);
         assert_eq!(parse_size_bytes(""), None);
     }

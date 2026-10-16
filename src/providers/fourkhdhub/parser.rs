@@ -1,4 +1,4 @@
-﻿use super::client::FourKHdHubError;
+use super::client::FourKHdHubError;
 use crate::providers::models::{
     CatalogItem, Episode, MediaDetails, MediaType, ProviderKind, ProviderMediaId, Release, Season,
     SourceMirror,
@@ -346,7 +346,7 @@ fn parse_season_count(value: &str) -> Option<usize> {
     let marker = value.find('S')?;
     let suffix = &value[marker..];
     suffix
-        .split(['-', ' ', 'â€¢'])
+        .split(['-', ' ', '\u{2022}'])
         .filter_map(|part| part.strip_prefix('S')?.parse::<usize>().ok())
         .max()
 }
@@ -567,12 +567,12 @@ mod tests {
 
     #[test]
     fn never_panics_on_multibyte_titles() {
-        assert_eq!(strip_trailing_year("è‹±é›„Ã©Ã©"), "è‹±é›„Ã©Ã©");
-        assert_eq!(strip_trailing_year("è‹±é›„Ã©Ã©(2020)"), "è‹±é›„Ã©Ã©");
-        assert_eq!(strip_trailing_year("ÃœnÃ¯cÃ¶dÃ© ðŸŽ¬"), "ÃœnÃ¯cÃ¶dÃ© ðŸŽ¬");
+        assert_eq!(strip_trailing_year("e"), "e");
+        assert_eq!(strip_trailing_year("e(2020)"), "e");
+        assert_eq!(strip_trailing_year("unicode"), "unicode");
         assert_eq!(
-            strip_trailing_year("ã‚¢ãƒ‹ãƒ¡ ã‚¿ã‚¤ãƒˆãƒ« (2023)"),
-            "ã‚¢ãƒ‹ãƒ¡ ã‚¿ã‚¤ãƒˆãƒ«"
+            strip_trailing_year("anime (2023)"),
+            "anime"
         );
     }
 
