@@ -1,4 +1,4 @@
-use crate::providers::models::{
+﻿use crate::providers::models::{
     CatalogItem, MediaDetails, MediaType, ProviderError, ProviderKind, ProviderMediaId, Release,
     SourceMirror,
 };
@@ -64,6 +64,7 @@ pub fn info_to_media_details(info: &VegaInfo, provider: &str, link: &str) -> Med
         genres,
         seasons: Vec::new(),
         dubs: Vec::new(),
+        stills_url: None,
     }
 }
 pub fn stream_to_release(stream: &VegaStream, quality_hint: Option<&str>) -> Option<Release> {

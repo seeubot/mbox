@@ -1,4 +1,4 @@
-use crate::providers::{CatalogItem, MediaDetails, Release};
+﻿use crate::providers::{CatalogItem, MediaDetails, Release};
 use serde::Serialize;
 #[derive(Serialize)]
 pub struct SearchResponse {
@@ -41,6 +41,7 @@ pub struct DetailsResponse {
     pub imdb_rating: Option<String>,
     pub audio_tracks: Vec<AudioTrack>,
     pub seasons: Vec<SeasonResponse>,
+    pub stills_url: Option<String>,
 }
 #[derive(Serialize)]
 pub struct AudioTrack {
@@ -95,6 +96,7 @@ impl From<MediaDetails> for DetailsResponse {
                         .collect(),
                 })
                 .collect(),
+            stills_url: d.stills_url,
         }
     }
 }

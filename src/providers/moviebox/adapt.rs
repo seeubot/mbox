@@ -419,7 +419,18 @@ pub fn moviebox_details_json_to_media_details(
             });
         }
     }
-
+    let stills_url = subject
+        .get("stills")
+        .and_then(|s| {
+            if s.is_object() {
+                s.get("url").and_then(|u| u.as_str()).map(|x| x.to_string())
+            } else if s.is_string() {
+                s.as_str().map(|x| x.to_string())
+            } else {
+                None
+            }
+        })
+        .filter(|u| !u.is_empty());
     Ok(MediaDetails {
         id: ProviderMediaId {
             provider: ProviderKind::MovieBox,
@@ -440,6 +451,7 @@ pub fn moviebox_details_json_to_media_details(
         genres,
         seasons,
         dubs,
+        stills_url,
     })
 }
 

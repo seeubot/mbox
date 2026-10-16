@@ -1,4 +1,4 @@
-use super::client::FourKHdHubError;
+﻿use super::client::FourKHdHubError;
 use crate::providers::models::{
     CatalogItem, Episode, MediaDetails, MediaType, ProviderKind, ProviderMediaId, Release, Season,
     SourceMirror,
@@ -147,6 +147,7 @@ pub fn parse_details(id: &str, html: &str) -> Result<MediaDetails, FourKHdHubErr
         genres,
         seasons,
         dubs: vec![],
+        stills_url: None,
     })
 }
 
@@ -345,7 +346,7 @@ fn parse_season_count(value: &str) -> Option<usize> {
     let marker = value.find('S')?;
     let suffix = &value[marker..];
     suffix
-        .split(['-', ' ', '•'])
+        .split(['-', ' ', 'â€¢'])
         .filter_map(|part| part.strip_prefix('S')?.parse::<usize>().ok())
         .max()
 }
@@ -566,12 +567,12 @@ mod tests {
 
     #[test]
     fn never_panics_on_multibyte_titles() {
-        assert_eq!(strip_trailing_year("英雄éé"), "英雄éé");
-        assert_eq!(strip_trailing_year("英雄éé(2020)"), "英雄éé");
-        assert_eq!(strip_trailing_year("Ünïcödé 🎬"), "Ünïcödé 🎬");
+        assert_eq!(strip_trailing_year("è‹±é›„Ã©Ã©"), "è‹±é›„Ã©Ã©");
+        assert_eq!(strip_trailing_year("è‹±é›„Ã©Ã©(2020)"), "è‹±é›„Ã©Ã©");
+        assert_eq!(strip_trailing_year("ÃœnÃ¯cÃ¶dÃ© ðŸŽ¬"), "ÃœnÃ¯cÃ¶dÃ© ðŸŽ¬");
         assert_eq!(
-            strip_trailing_year("アニメ タイトル (2023)"),
-            "アニメ タイトル"
+            strip_trailing_year("ã‚¢ãƒ‹ãƒ¡ ã‚¿ã‚¤ãƒˆãƒ« (2023)"),
+            "ã‚¢ãƒ‹ãƒ¡ ã‚¿ã‚¤ãƒˆãƒ«"
         );
     }
 
